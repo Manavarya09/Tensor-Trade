@@ -1,0 +1,25 @@
+# Trading Agent System Dependencies
+# ==================================
+
+# Core dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# AI/LLM dependencies
+groq>=0.4.0
+aiohttp>=3.9.0
+
+# Market data dependencies
+yfinance>=0.2.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# Voice calling dependencies
+twilio>=9.0.0
+elevenlabs>=2.0.0
+
+# For development
+pytest>=7.4.0

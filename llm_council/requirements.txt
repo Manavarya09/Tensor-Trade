@@ -1,0 +1,9 @@
+# LLM Council Dependencies
+fastapi>=0.109.0
+pydantic>=2.8.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+aiohttp>=3.9.0
+requests>=2.31.0
+yfinance>=0.2.36
+uvicorn>=0.27.0

@@ -1,0 +1,2431 @@
+# TensorTrade MVP Master Build Prompt
+
+**Project:** TensorTrade - AI-Powered Trading Platform  
+**Objective:** Build complete MVP features on top of existing codebase  
+**Timeline:** Iterative development with preservation of existing functionality  
+**Critical Requirement:** ⚠️ DO NOT break or remove any existing features
+
+---
+
+## 🎯 Mission Statement
+
+You are an expert full-stack developer tasked with building TensorTrade into a production-ready MVP. The project already has a foundation - your job is to **intelligently analyze the existing codebase** and **add new features WITHOUT breaking what works**.
+
+**Golden Rules:**
+1. **Preserve First** - Never delete existing working code
+2. **Extend, Don't Replace** - Build on top of current architecture
+3. **Test Before Commit** - Verify existing features still work
+4. **Incremental Changes** - Small, reviewable commits
+5. **Document Everything** - Update docs as you build
+
+---
+
+## 📋 Prerequisites: Analyze Existing Codebase
+
+**BEFORE writing any code, perform this analysis:**
+
+### Step 1: Repository Structure Analysis
+
+```bash
+# Generate project tree
+tree -L 3 -I 'node_modules|.next|.git' > PROJECT_STRUCTURE.md
+
+# Identify existing features
+grep -r "export.*function" --include="*.ts" --include="*.tsx" | wc -l
+grep -r "POST\|GET\|PUT\|DELETE" app/api --include="*.ts" | grep "export"
+
+# Document findings
+echo "## Existing Features Inventory" > EXISTING_FEATURES.md
+```
+
+**Document:**
+- [ ] All existing API endpoints (list each route)
+- [ ] All existing React components (list each component)
+- [ ] Current database schema (tables, columns, relationships)
+- [ ] Environment variables in use
+- [ ] External APIs/services already integrated
+- [ ] Authentication flow (Clerk? Auth0? Custom?)
+- [ ] Existing agent implementations
+
+### Step 2: Dependency Analysis
+
+```bash
+# Check package.json
+cat package.json | jq '.dependencies, .devDependencies'
+
+# Verify critical dependencies
+npm list @supabase/supabase-js
+npm list next
+npm list react
+```
+
+**Document:**
+- [ ] Next.js version (13? 14?)
+- [ ] React version
+- [ ] Database client (Supabase? Prisma?)
+- [ ] UI library (shadcn? MUI?)
+- [ ] State management (Zustand? Redux?)
+- [ ] LLM integrations (OpenRouter? Direct APIs?)
+
+### Step 3: Code Quality Check
+
+```bash
+# Run existing tests
+npm test
+
+# Check for TypeScript errors
+npm run type-check || npx tsc --noEmit
+
+# Run linter
+npm run lint
+```
+
+**Document:**
+- [ ] Current test coverage %
+- [ ] Any TypeScript errors to fix
+- [ ] Linting issues to address
+
+### Step 4: Feature Gap Analysis
+
+Compare existing codebase against required features:
+
+```markdown
+## Feature Gap Analysis
+
+### ✅ Already Implemented
+- [x] Feature X (location: /app/api/x/route.ts)
+- [x] Feature Y (location: /components/Y.tsx)
+
+### 🚧 Partially Implemented
+- [~] Feature Z (needs: additional endpoint, UI polish)
+
+### ❌ Not Implemented
+- [ ] Feature A
+- [ ] Feature B
+- [ ] Feature C
+
+### 🔧 Needs Refactoring
+- Feature D (currently buggy, needs rewrite)
+```
+
+---
+
+## 🏗️ Build Plan: Phased Implementation
+
+### Phase 1: Foundation Enhancement (Week 1-2)
+
+**Goal:** Strengthen existing foundation without breaking anything
+
+#### Task 1.1: Database Schema Additions
+
+**Analyze first:**
+```bash
+# Check if using Supabase
+ls supabase/migrations/*.sql
+
+# Or Prisma
+cat prisma/schema.prisma
+```
+
+**Then add missing tables:**
+
+```sql
+-- Only create tables that DON'T exist
+-- Check existing schema first!
+
+-- Example: Trading policies (if not exists)
+CREATE TABLE IF NOT EXISTS trading_policies (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  rules JSONB NOT NULL,
+  active BOOLEAN DEFAULT true,
+  violations INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Example: Calling schedules (if not exists)
+CREATE TABLE IF NOT EXISTS calling_schedules (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  phone VARCHAR(20) NOT NULL,
+  cron VARCHAR(100) NOT NULL,
+  content_type VARCHAR(50) DEFAULT 'market_update',
+  language VARCHAR(5) DEFAULT 'en',
+  active BOOLEAN DEFAULT true,
+  next_call TIMESTAMP,
+  last_call TIMESTAMP,
+  total_calls INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Example: Feedback for self-learning (if not exists)
+CREATE TABLE IF NOT EXISTS agent_feedback (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  analysis_id VARCHAR(100),
+  agent_name VARCHAR(50),
+  prediction JSONB,
+  actual_outcome JSONB,
+  accuracy_score DECIMAL(5,2),
+  user_rating INTEGER CHECK (user_rating >= 1 AND user_rating <= 5),
+  helpful BOOLEAN,
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Example: IPO listings (if not exists)
+CREATE TABLE IF NOT EXISTS ipo_listings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_name VARCHAR(200) NOT NULL,
+  ticker VARCHAR(20),
+  exchange VARCHAR(50),
+  ipo_date DATE,
+  price_range_low DECIMAL(10,2),
+  price_range_high DECIMAL(10,2),
+  sector VARCHAR(100),
+  shariah_compliant BOOLEAN,
+  shariah_score INTEGER,
+  market_cap_estimate BIGINT,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_policies_user ON trading_policies(user_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_user ON calling_schedules(user_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_next_call ON calling_schedules(next_call) WHERE active = true;
+CREATE INDEX IF NOT EXISTS idx_feedback_analysis ON agent_feedback(analysis_id);
+CREATE INDEX IF NOT EXISTS idx_ipo_date ON ipo_listings(ipo_date);
+```
+
+**Checklist:**
+- [ ] Analyze existing schema
+- [ ] Identify missing tables
+- [ ] Create migration file
+- [ ] Run migration on dev DB
+- [ ] Verify existing data intact
+- [ ] Update TypeScript types
+
+#### Task 1.2: API Route Enhancements
+
+**Extend existing `/api/v1/analyze` (if exists) or create new:**
+
+```typescript
+// app/api/v1/analyze/route.ts
+
+import { NextRequest, NextResponse } from 'next/server'
+import { validateAsset } from '@/lib/validators/asset'
+import { getMarketData } from '@/services/market-data'
+import { runDebateCouncil } from '@/lib/agents/debate-engine'
+import { checkShariahCompliance } from '@/lib/agents/shariah'
+import { analyzeBehavior } from '@/lib/agents/behavioral'
+import { generateNarrative } from '@/lib/agents/narrator'
+
+// ⚠️ Check if this route already exists!
+// If yes, EXTEND it. If no, CREATE it.
+
+export async function POST(req: NextRequest) {
+  try {
+    // 1. Parse request
+    const body = await req.json()
+    const { asset, user_id, include = ['debate'], timeframe = '1D' } = body
+
+    // 2. Validate asset symbol
+    const isValid = await validateAsset(asset)
+    if (!isValid) {
+      return NextResponse.json(
+        { error: 'invalid_asset', message: `Symbol '${asset}' not found` },
+        { status: 400 }
+      )
+    }
+
+    // 3. Fetch market data
+    const marketData = await getMarketData(asset)
+
+    // 4. Run agents in parallel (only requested ones)
+    const results: any = {}
+
+    const promises = []
+    
+    if (include.includes('debate')) {
+      promises.push(
+        runDebateCouncil(asset, marketData).then(r => { results.debate = r })
+      )
+    }
+
+    if (include.includes('shariah')) {
+      promises.push(
+        checkShariahCompliance(asset).then(r => { results.shariah = r })
+      )
+    }
+
+    if (include.includes('behavioral') && user_id) {
+      promises.push(
+        analyzeBehavior(user_id).then(r => { results.behavioral = r })
+      )
+    }
+
+    await Promise.all(promises)
+
+    // 5. Generate narrative
+    const narrative = await generateNarrative({
+      asset,
+      ...results
+    })
+
+    // 6. Return response
+    return NextResponse.json({
+      status: 'success',
+      asset,
+      timestamp: new Date().toISOString(),
+      analysis: results,
+      narrative,
+      processing_time: 3.5 // Calculate actual time
+    })
+
+  } catch (error: any) {
+    console.error('Analysis error:', error)
+    return NextResponse.json(
+      { error: 'server_error', message: error.message },
+      { status: 500 }
+    )
+  }
+}
+```
+
+**New API routes to add:**
+
+```typescript
+// app/api/v1/portfolio/optimize/route.ts
+export async function POST(req: NextRequest) {
+  // Portfolio optimization logic
+}
+
+// app/api/v1/shariah/screen/route.ts
+export async function POST(req: NextRequest) {
+  // Shariah screening logic
+}
+
+// app/api/v1/voice/schedule/route.ts
+export async function POST(req: NextRequest) {
+  // Voice calling schedule logic
+}
+
+// app/api/v1/calendar/ipo/route.ts
+export async function GET(req: NextRequest) {
+  // IPO listings logic
+}
+
+// app/api/v1/policies/create/route.ts
+export async function POST(req: NextRequest) {
+  // Trading policy creation logic
+}
+
+// app/api/v1/policies/evaluate/route.ts
+export async function POST(req: NextRequest) {
+  // Real-time policy evaluation
+}
+```
+
+**Checklist:**
+- [ ] Identify existing API routes
+- [ ] Extend existing routes (don't replace)
+- [ ] Add new routes for missing features
+- [ ] Add error handling
+- [ ] Add input validation (Zod schemas)
+- [ ] Add rate limiting middleware
+- [ ] Test each endpoint manually
+
+#### Task 1.3: Environment Variables
+
+**Analyze `.env.example` or `.env.local`:**
+
+```bash
+# Check existing env vars
+cat .env.example
+
+# Add missing ones
+cat >> .env.example << 'EOF'
+
+# LLM Providers (add only if not present)
+OPENROUTER_API_KEY=
+MISTRAL_API_KEY=
+GROQ_API_KEY=
+
+# Twilio (for voice agent)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+
+# Monitoring (optional)
+SENTRY_DSN=
+POSTHOG_API_KEY=
+
+# Stripe (payments)
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+EOF
+```
+
+**Checklist:**
+- [ ] Document all existing env vars
+- [ ] Add new required vars
+- [ ] Update `.env.example`
+- [ ] Never commit actual keys to git
+- [ ] Test with test keys first
+
+---
+
+### Phase 2: Core Agent Implementation (Week 3-4)
+
+**Goal:** Implement 5-agent debate system + supporting agents
+
+#### Task 2.1: Agent Base Architecture
+
+**First, check if agent structure exists:**
+
+```bash
+# Look for existing agents
+find . -name "*agent*" -type f
+ls lib/agents/
+```
+
+**Create modular agent system:**
+
+```typescript
+// lib/agents/base-agent.ts
+
+export interface AgentConfig {
+  name: string
+  role: string
+  model: string
+  provider: 'openrouter' | 'mistral' | 'groq'
+  temperature?: number
+  max_tokens?: number
+}
+
+export interface AgentResponse {
+  name: string
+  stance: 'bullish' | 'bearish' | 'neutral'
+  confidence: number // 0-10
+  reasoning: string
+  supporting_points: string[]
+  risks: string[]
+  raw_output?: string
+}
+
+export abstract class BaseAgent {
+  protected config: AgentConfig
+
+  constructor(config: AgentConfig) {
+    this.config = config
+  }
+
+  abstract analyze(asset: string, marketData: any): Promise<AgentResponse>
+
+  protected async callLLM(prompt: string): Promise<string> {
+    // LLM API call logic based on provider
+    const { provider, model, temperature, max_tokens } = this.config
+
+    if (provider === 'openrouter') {
+      return this.callOpenRouter(prompt, model, temperature, max_tokens)
+    } else if (provider === 'mistral') {
+      return this.callMistral(prompt, model, temperature, max_tokens)
+    } else if (provider === 'groq') {
+      return this.callGroq(prompt, model, temperature, max_tokens)
+    }
+
+    throw new Error(`Unknown provider: ${provider}`)
+  }
+
+  private async callOpenRouter(prompt: string, model: string, temp?: number, max?: number): Promise<string> {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: temp || 0.7,
+        max_tokens: max || 1000,
+      })
+    })
+
+    const data = await response.json()
+    return data.choices[0].message.content
+  }
+
+  // Similar methods for Mistral and Groq
+  private async callMistral(prompt: string, model: string, temp?: number, max?: number): Promise<string> {
+    // Implementation
+    return ''
+  }
+
+  private async callGroq(prompt: string, model: string, temp?: number, max?: number): Promise<string> {
+    // Implementation
+    return ''
+  }
+
+  protected parseResponse(rawOutput: string): Partial<AgentResponse> {
+    // Extract structured data from LLM response
+    // Use regex or JSON parsing
+    return {
+      reasoning: rawOutput,
+      supporting_points: [],
+      risks: []
+    }
+  }
+}
+```
+
+#### Task 2.2: Implement 5-Agent Debate Council
+
+**Create each specialized agent:**
+
+```typescript
+// lib/agents/macro-hawk.ts
+
+import { BaseAgent, AgentConfig, AgentResponse } from './base-agent'
+
+export class MacroHawkAgent extends BaseAgent {
+  constructor() {
+    super({
+      name: 'Macro Hawk',
+      role: 'Macroeconomic Strategist',
+      model: 'mistralai/mistral-7b-instruct',
+      provider: 'openrouter',
+      temperature: 0.7,
+      max_tokens: 1500
+    })
+  }
+
+  async analyze(asset: string, marketData: any): Promise<AgentResponse> {
+    const prompt = `
+You are the Macro Hawk, a macroeconomic strategist analyzing ${asset}.
+
+MARKET DATA:
+- Current Price: $${marketData.price}
+- 52W High/Low: $${marketData.high52w} / $${marketData.low52w}
+- Sector: ${marketData.sector}
+
+YOUR FOCUS: Federal Reserve policy, interest rates, inflation, sector rotation, currency impacts.
+
+Provide your analysis in this format:
+
+PRIMARY DRIVER: [Main macro catalyst affecting this asset]
+
+SUPPORTING CATALYSTS:
+1. [Catalyst 1 with data]
+2. [Catalyst 2 with data]
+3. [Catalyst 3 with data]
+
+MACRO RISKS: [What macro factors could reverse the move?]
+
+STANCE: [Bullish/Bearish/Neutral]
+CONFIDENCE: [1-10]
+`
+
+    const rawOutput = await this.callLLM(prompt)
+    const parsed = this.parseResponse(rawOutput)
+
+    return {
+      name: this.config.name,
+      stance: this.determineStance(rawOutput),
+      confidence: this.extractConfidence(rawOutput),
+      reasoning: parsed.reasoning || rawOutput,
+      supporting_points: parsed.supporting_points || [],
+      risks: parsed.risks || [],
+      raw_output: rawOutput
+    }
+  }
+
+  private determineStance(output: string): 'bullish' | 'bearish' | 'neutral' {
+    const lower = output.toLowerCase()
+    if (lower.includes('stance: bullish') || lower.includes('bullish outlook')) {
+      return 'bullish'
+    } else if (lower.includes('stance: bearish') || lower.includes('bearish outlook')) {
+      return 'bearish'
+    }
+    return 'neutral'
+  }
+
+  private extractConfidence(output: string): number {
+    const match = output.match(/confidence:\s*(\d+)/i)
+    return match ? parseInt(match[1]) : 5
+  }
+}
+```
+
+**Similarly create:**
+- `micro-forensic.ts` (Fundamental analyst)
+- `flow-detective.ts` (Market microstructure)
+- `tech-interpreter.ts` (Technical analyst)
+- `skeptic.ts` (Risk manager)
+
+#### Task 2.3: Debate Engine
+
+```typescript
+// lib/agents/debate-engine.ts
+
+import { MacroHawkAgent } from './macro-hawk'
+import { MicroForensicAgent } from './micro-forensic'
+import { FlowDetectiveAgent } from './flow-detective'
+import { TechInterpreterAgent } from './tech-interpreter'
+import { SkepticAgent } from './skeptic'
+
+export interface DebateResult {
+  consensus: 'bullish' | 'bearish' | 'neutral'
+  confidence: number
+  agents: any[]
+  consensus_points: string[]
+  disagreements: string[]
+}
+
+export async function runDebateCouncil(
+  asset: string,
+  marketData: any
+): Promise<DebateResult> {
+  // Initialize all agents
+  const agents = [
+    new MacroHawkAgent(),
+    new MicroForensicAgent(),
+    new FlowDetectiveAgent(),
+    new TechInterpreterAgent(),
+    new SkepticAgent()
+  ]
+
+  // Run all agents in parallel
+  const results = await Promise.all(
+    agents.map(agent => agent.analyze(asset, marketData))
+  )
+
+  // Calculate consensus
+  const bullishCount = results.filter(r => r.stance === 'bullish').length
+  const bearishCount = results.filter(r => r.stance === 'bearish').length
+
+  let consensus: 'bullish' | 'bearish' | 'neutral'
+  if (bullishCount > 3) consensus = 'bullish'
+  else if (bearishCount > 3) consensus = 'bearish'
+  else consensus = 'neutral'
+
+  // Average confidence
+  const avgConfidence = results.reduce((sum, r) => sum + r.confidence, 0) / results.length
+
+  // Find consensus points (mentioned by 3+ agents)
+  const consensusPoints = findConsensusPoints(results)
+
+  // Find disagreements
+  const disagreements = findDisagreements(results)
+
+  return {
+    consensus,
+    confidence: avgConfidence,
+    agents: results,
+    consensus_points: consensusPoints,
+    disagreements
+  }
+}
+
+function findConsensusPoints(results: any[]): string[] {
+  // Logic to find common themes
+  return []
+}
+
+function findDisagreements(results: any[]): string[] {
+  // Logic to find conflicting views
+  return []
+}
+```
+
+#### Task 2.4: Supporting Agents
+
+**Shariah Compliance Agent:**
+
+```typescript
+// lib/agents/shariah.ts
+
+export interface ShariahResult {
+  compliant: boolean
+  score: number // 0-100
+  breakdown: {
+    business: { score: number; status: string; details: string }
+    debt_ratio: { score: number; value: number; threshold: number }
+    interest_income: { score: number; value: number; threshold: number }
+    cash_ratio: { score: number; value: number; threshold: number }
+  }
+  concerns: string[]
+  purification_required: boolean
+}
+
+export async function checkShariahCompliance(asset: string): Promise<ShariahResult> {
+  // Fetch company financials
+  const financials = await getCompanyFinancials(asset)
+
+  // Business activities screening
+  const businessScore = await screenBusinessActivities(asset, financials)
+
+  // Financial ratios screening
+  const debtRatio = financials.totalDebt / financials.marketCap
+  const interestIncome = financials.interestIncome / financials.totalRevenue
+  const cashRatio = financials.cash / financials.totalAssets
+
+  // Thresholds (AAOIFI standards)
+  const debtThreshold = 0.33
+  const interestThreshold = 0.05
+  const cashThreshold = 0.50
+
+  // Scoring logic
+  const debtScore = debtRatio < debtThreshold ? 100 : (1 - debtRatio) * 100
+  const interestScore = interestIncome < interestThreshold ? 100 : (1 - interestIncome) * 100
+  const cashScore = cashRatio < cashThreshold ? 100 : (1 - cashRatio) * 100
+
+  // Overall score (weighted average)
+  const overallScore = (
+    businessScore * 0.40 +
+    debtScore * 0.30 +
+    interestScore * 0.20 +
+    cashScore * 0.10
+  )
+
+  const compliant = overallScore >= 70
+
+  return {
+    compliant,
+    score: Math.round(overallScore),
+    breakdown: {
+      business: { score: businessScore, status: 'Halal', details: financials.sector },
+      debt_ratio: { score: Math.round(debtScore), value: debtRatio, threshold: debtThreshold },
+      interest_income: { score: Math.round(interestScore), value: interestIncome, threshold: interestThreshold },
+      cash_ratio: { score: Math.round(cashScore), value: cashRatio, threshold: cashThreshold }
+    },
+    concerns: generateConcerns(debtRatio, interestIncome, cashRatio),
+    purification_required: interestIncome > 0.01
+  }
+}
+
+async function screenBusinessActivities(asset: string, financials: any): Promise<number> {
+  // Use LLM to analyze business description for haram industries
+  const prompt = `
+Analyze if this business is Shariah-compliant:
+
+Company: ${asset}
+Sector: ${financials.sector}
+Business Description: ${financials.description}
+
+HARAM INDUSTRIES:
+- Alcohol production/distribution
+- Gambling/casinos
+- Pork products
+- Conventional banking (interest-based)
+- Weapons/defense
+- Tobacco
+- Adult entertainment
+
+Is this business Shariah-compliant? Respond with score 0-100 and reasoning.
+`
+
+  const response = await callLLM(prompt, 'groq', 'mixtral-8x7b-32768')
+  
+  // Parse score from response
+  const scoreMatch = response.match(/score:\s*(\d+)/i)
+  return scoreMatch ? parseInt(scoreMatch[1]) : 50
+}
+
+function generateConcerns(debt: number, interest: number, cash: number): string[] {
+  const concerns = []
+  if (debt > 0.30) concerns.push('Debt ratio approaching threshold')
+  if (interest > 0.03) concerns.push('Interest income detected - purification may be required')
+  if (cash > 0.45) concerns.push('Cash ratio approaching threshold')
+  return concerns
+}
+```
+
+**Behavioral Analysis Agent:**
+
+```typescript
+// lib/agents/behavioral.ts
+
+export interface BehavioralResult {
+  flags: {
+    pattern: string
+    severity: 'High' | 'Medium' | 'Positive'
+    message: string
+    details: string
+  }[]
+  risk_score: number // 0-100
+  patterns_detected: number
+  positive_patterns: number
+}
+
+export async function analyzeBehavior(userId: string): Promise<BehavioralResult> {
+  // Fetch user's recent trades
+  const trades = await getUserTrades(userId, { limit: 50, days: 30 })
+
+  const flags = []
+
+  // Pattern 1: Revenge Trading
+  const revengeTrading = detectRevengeTrad (trades)
+  if (revengeTrading) {
+    flags.push({
+      pattern: 'Revenge Trading',
+      severity: 'High',
+      message: 'Detected increased position sizes after losses',
+      details: `${revengeTrading.count} instances in last 30 days`
+    })
+  }
+
+  // Pattern 2: FOMO
+  const fomo = detectFOMO(trades)
+  if (fomo) {
+    flags.push({
+      pattern: 'FOMO',
+      severity: 'Medium',
+      message: 'Chasing stocks that moved >5% without analysis',
+      details: `${fomo.count} trades on momentum alone`
+    })
+  }
+
+  // Pattern 3: Overtrading
+  const overtrading = detectOvertrading(trades)
+  if (overtrading) {
+    flags.push({
+      pattern: 'Overtrading',
+      severity: 'Medium',
+      message: `High trade frequency: ${overtrading.tradesPerDay} trades/day`,
+      details: 'Consider reducing frequency to avoid burnout'
+    })
+  }
+
+  // ... implement 7 more patterns
+
+  // Calculate risk score
+  const riskScore = calculateRiskScore(flags)
+
+  return {
+    flags,
+    risk_score: riskScore,
+    patterns_detected: flags.length,
+    positive_patterns: flags.filter(f => f.severity === 'Positive').length
+  }
+}
+
+function detectRevengeTrading(trades: any[]): any {
+  // Logic: After a loss, did user increase position size?
+  let revengeCount = 0
+
+  for (let i = 1; i < trades.length; i++) {
+    const prevTrade = trades[i - 1]
+    const currTrade = trades[i]
+
+    if (prevTrade.pnl < 0 && currTrade.quantity > prevTrade.quantity * 1.5) {
+      revengeCount++
+    }
+  }
+
+  return revengeCount > 0 ? { count: revengeCount } : null
+}
+
+function detectFOMO(trades: any[]): any {
+  // Logic: Bought stocks that moved >5% same day
+  // Implementation
+  return null
+}
+
+function detectOvertrading(trades: any[]): any {
+  const daysTraded = new Set(trades.map(t => t.timestamp.split('T')[0])).size
+  const tradesPerDay = trades.length / daysTraded
+
+  return tradesPerDay > 5 ? { tradesPerDay: tradesPerDay.toFixed(1) } : null
+}
+
+function calculateRiskScore(flags: any[]): number {
+  const weights = {
+    'High': 20,
+    'Medium': 10,
+    'Positive': -10
+  }
+
+  const score = flags.reduce((sum, flag) => sum + weights[flag.severity], 0)
+  return Math.min(100, Math.max(0, score))
+}
+```
+
+**Checklist:**
+- [ ] Implement BaseAgent class
+- [ ] Create 5 debate agents
+- [ ] Implement debate engine with parallel execution
+- [ ] Create Shariah compliance agent
+- [ ] Create behavioral analysis agent
+- [ ] Create narrator agent (synthesizes results)
+- [ ] Test each agent individually
+- [ ] Test full debate flow end-to-end
+
+---
+
+### Phase 3: Dashboard UI (Week 5-6)
+
+**Goal:** Build user-facing dashboard on top of existing UI (if any)
+
+#### Task 3.1: Analyze Existing UI
+
+```bash
+# Check existing components
+ls app/components/
+ls components/
+
+# Check UI library
+grep -r "shadcn\|@radix\|mui" package.json
+```
+
+#### Task 3.2: Create Dashboard Layout (Only if doesn't exist)
+
+**Check first if layout exists:**
+
+```typescript
+// app/dashboard/layout.tsx
+
+'use client'
+
+import { useState } from 'react'
+import { usePathname } from 'next/navigation'
+import Link from 'next/link'
+import { 
+  HomeIcon, 
+  ChartBarIcon, 
+  ShieldCheckIcon, 
+  CogIcon,
+  CalendarIcon,
+  DocumentTextIcon
+} from '@heroicons/react/24/outline'
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const pathname = usePathname()
+  
+  const navigation = [
+    { name: 'Home', href: '/dashboard', icon: HomeIcon },
+    { name: 'Portfolio', href: '/dashboard/portfolio', icon: ChartBarIcon },
+    { name: 'Analyze', href: '/dashboard/analyze', icon: ChartBarIcon },
+    { name: 'Policies', href: '/dashboard/policies', icon: ShieldCheckIcon },
+    { name: 'IPO Calendar', href: '/dashboard/ipo', icon: CalendarIcon },
+    { name: 'Journal', href: '/dashboard/journal', icon: DocumentTextIcon },
+    { name: 'Settings', href: '/dashboard/settings', icon: CogIcon },
+  ]
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200">
+        <div className="flex flex-col h-full">
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900">TensorTrade</h1>
+          </div>
+          
+          <nav className="flex-1 px-4 space-y-1">
+            {navigation.map((item) => {
+              const isActive = pathname === item.href
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`
+                    flex items-center px-4 py-3 text-sm font-medium rounded-lg
+                    ${isActive 
+                      ? 'bg-blue-50 text-blue-700' 
+                      : 'text-gray-700 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <item.icon className="w-5 h-5 mr-3" />
+                  {item.name}
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="ml-64">
+        <main className="p-8">
+          {children}
+        </main>
+      </div>
+    </div>
+  )
+}
+```
+
+#### Task 3.3: Dashboard Pages
+
+**Portfolio Page:**
+
+```typescript
+// app/dashboard/portfolio/page.tsx
+
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useUser } from '@clerk/nextjs'
+
+export default function PortfolioPage() {
+  const { user } = useUser()
+  const [portfolio, setPortfolio] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchPortfolio()
+  }, [])
+
+  async function fetchPortfolio() {
+    const res = await fetch(`/api/v1/portfolio?user_id=${user?.id}`)
+    const data = await res.json()
+    setPortfolio(data)
+    setLoading(false)
+  }
+
+  if (loading) return <div>Loading...</div>
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-8">Portfolio</h1>
+
+      {/* Portfolio Summary Cards */}
+      <div className="grid grid-cols-3 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <p className="text-sm text-gray-600">Total Value</p>
+          <p className="text-3xl font-bold">${portfolio?.total_value.toLocaleString()}</p>
+        </div>
+        
+        <div className="bg-white p-6 rounded-lg shadow">
+          <p className="text-sm text-gray-600">Total P&L</p>
+          <p className={`text-3xl font-bold ${portfolio?.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            ${portfolio?.total_pnl.toLocaleString()}
+          </p>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow">
+          <p className="text-sm text-gray-600">Shariah Compliance</p>
+          <p className="text-3xl font-bold">{portfolio?.shariah_score}/100</p>
+        </div>
+      </div>
+
+      {/* Holdings Table */}
+      <div className="bg-white rounded-lg shadow">
+        <table className="min-w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Asset</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Cost</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Price</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">P&L</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shariah</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {portfolio?.assets.map((asset: any) => (
+              <tr key={asset.symbol}>
+                <td className="px-6 py-4 whitespace-nowrap font-medium">{asset.symbol}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{asset.quantity}</td>
+                <td className="px-6 py-4 whitespace-nowrap">${asset.avg_cost}</td>
+                <td className="px-6 py-4 whitespace-nowrap">${asset.current_price}</td>
+                <td className={`px-6 py-4 whitespace-nowrap ${asset.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ${asset.pnl.toFixed(2)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 py-1 text-xs font-semibold rounded ${asset.shariah_score >= 70 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {asset.shariah_score}/100
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+```
+
+**Analysis Page:**
+
+```typescript
+// app/dashboard/analyze/page.tsx
+
+'use client'
+
+import { useState } from 'react'
+
+export default function AnalyzePage() {
+  const [asset, setAsset] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<any>(null)
+
+  async function handleAnalyze() {
+    setLoading(true)
+
+    const res = await fetch('/api/v1/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        asset,
+        include: ['debate', 'shariah', 'behavioral']
+      })
+    })
+
+    const data = await res.json()
+    setResult(data)
+    setLoading(false)
+  }
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-8">Analyze Asset</h1>
+
+      {/* Search Input */}
+      <div className="mb-8">
+        <div className="flex gap-4">
+          <input
+            type="text"
+            value={asset}
+            onChange={(e) => setAsset(e.target.value.toUpperCase())}
+            placeholder="Enter symbol (e.g., AAPL, TSLA)"
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg"
+          />
+          <button
+            onClick={handleAnalyze}
+            disabled={!asset || loading}
+            className="px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Analyzing...' : 'Analyze'}
+          </button>
+        </div>
+      </div>
+
+      {/* Results */}
+      {result && (
+        <div className="space-y-6">
+          {/* Recommendation Card */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-xl font-bold mb-4">Recommendation</h2>
+            <p className="text-3xl font-bold text-blue-600">{result.recommendation}</p>
+          </div>
+
+          {/* Agent Perspectives */}
+          <div>
+            <h2 className="text-xl font-bold mb-4">5-Agent Debate</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {result.analysis.debate?.agents.map((agent: any) => (
+                <div key={agent.name} className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold">{agent.name}</h3>
+                    <span className={`px-3 py-1 text-sm font-semibold rounded ${
+                      agent.stance === 'bullish' ? 'bg-green-100 text-green-800' :
+                      agent.stance === 'bearish' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {agent.stance}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Confidence: {agent.confidence}/10
+                  </p>
+                  <p className="text-sm">{agent.reasoning}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Shariah Compliance */}
+          {result.analysis.shariah && (
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold mb-4">Shariah Compliance</h2>
+              <div className="flex items-center gap-4">
+                <div className={`text-4xl ${result.analysis.shariah.compliant ? 'text-green-600' : 'text-red-600'}`}>
+                  {result.analysis.shariah.compliant ? '✅ Halal' : '❌ Haram'}
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{result.analysis.shariah.score}/100</p>
+                  <p className="text-sm text-gray-600">Compliance Score</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+**Policies Page:**
+
+```typescript
+// app/dashboard/policies/page.tsx
+
+'use client'
+
+import { useState, useEffect } from 'react'
+
+export default function PoliciesPage() {
+  const [policies, setPolicies] = useState<any[]>([])
+  const [showCreate, setShowCreate] = useState(false)
+
+  useEffect(() => {
+    fetchPolicies()
+  }, [])
+
+  async function fetchPolicies() {
+    const res = await fetch('/api/v1/policies/list')
+    const data = await res.json()
+    setPolicies(data.policies)
+  }
+
+  async function createPolicy(policy: any) {
+    await fetch('/api/v1/policies/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(policy)
+    })
+
+    fetchPolicies()
+    setShowCreate(false)
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Trading Policies</h1>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg"
+        >
+          Create Policy
+        </button>
+      </div>
+
+      {/* Policies List */}
+      <div className="space-y-4">
+        {policies.map((policy) => (
+          <div key={policy.id} className="bg-white p-6 rounded-lg shadow">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-bold">{policy.name}</h3>
+                <p className="text-sm text-gray-600 mt-1">{policy.type}</p>
+              </div>
+              <span className={`px-3 py-1 text-sm font-semibold rounded ${policy.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                {policy.active ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <div className="mt-4">
+              <p className="text-sm">Violations: {policy.violations}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Create Policy Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-8 rounded-lg w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-6">Create Policy</h2>
+            {/* Policy creation form */}
+            <PolicyForm onSubmit={createPolicy} onCancel={() => setShowCreate(false)} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+**Checklist:**
+- [ ] Analyze existing UI components
+- [ ] Extend existing layout (don't replace)
+- [ ] Create missing dashboard pages
+- [ ] Implement data fetching hooks
+- [ ] Add loading states
+- [ ] Add error handling
+- [ ] Make responsive (mobile-friendly)
+- [ ] Test all pages work
+
+---
+
+### Phase 4: Advanced Features (Week 7-8)
+
+#### Task 4.1: Trading Policies Engine
+
+```typescript
+// lib/policies/evaluator.ts
+
+export interface Policy {
+  id: string
+  user_id: string
+  type: 'loss_limit' | 'trade_frequency' | 'position_size' | 'custom'
+  threshold: number
+  action: 'alert' | 'lock' | 'auto_close'
+  rules: any
+}
+
+export async function evaluateAllPolicies(userId: string): Promise<{
+  violations: any[]
+  actions: string[]
+}> {
+  const policies = await getUserPolicies(userId)
+  const trades = await getTodaysTrades(userId)
+
+  const violations = []
+  const actions = []
+
+  for (const policy of policies) {
+    if (!policy.active) continue
+
+    const violation = await evaluatePolicy(policy, trades)
+    if (violation) {
+      violations.push({ policy, violation })
+
+      // Execute action
+      if (policy.action === 'lock') {
+        await lockUserTrading(userId)
+        actions.push(`Trading locked due to ${policy.name}`)
+      } else if (policy.action === 'alert') {
+        await sendAlert(userId, `Policy ${policy.name} violated`)
+        actions.push(`Alert sent for ${policy.name}`)
+      }
+    }
+  }
+
+  return { violations, actions }
+}
+
+async function evaluatePolicy(policy: Policy, trades: any[]): Promise<any> {
+  switch (policy.type) {
+    case 'loss_limit':
+      return evaluateLossLimit(policy, trades)
+    case 'trade_frequency':
+      return evaluateTradeFrequency(policy, trades)
+    case 'position_size':
+      return evaluatePositionSize(policy, trades)
+    default:
+      return null
+  }
+}
+
+function evaluateLossLimit(policy: Policy, trades: any[]): any {
+  const totalLoss = trades.reduce((sum, t) => sum + (t.pnl < 0 ? t.pnl : 0), 0)
+  
+  if (Math.abs(totalLoss) >= policy.threshold) {
+    return {
+      type: 'loss_limit',
+      message: `Daily loss limit reached: $${Math.abs(totalLoss).toFixed(2)}`,
+      threshold: policy.threshold,
+      actual: Math.abs(totalLoss)
+    }
+  }
+
+  return null
+}
+
+// Similar for other policy types
+```
+
+#### Task 4.2: Voice Calling Agent
+
+```typescript
+// lib/voice/calling-agent.ts
+
+import twilio from 'twilio'
+
+const client = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+)
+
+export async function scheduleCall(params: {
+  userId: string
+  phone: string
+  schedule: string
+  content: string
+  language: string
+}) {
+  // Parse schedule to cron
+  const cron = parseScheduleToCron(params.schedule)
+
+  // Save to database
+  const schedule = await createCallingSchedule({
+    user_id: params.userId,
+    phone: params.phone,
+    cron,
+    content_type: params.content,
+    language: params.language,
+    next_call: calculateNextCall(cron)
+  })
+
+  return schedule
+}
+
+export async function executeCall(scheduleId: string) {
+  const schedule = await getCallingSchedule(scheduleId)
+  const user = await getUser(schedule.user_id)
+
+  // Generate call content
+  const content = await generateCallContent(user, schedule.content_type)
+
+  // Make call
+  const call = await client.calls.create({
+    url: `${process.env.BASE_URL}/api/v1/voice/twiml?content=${encodeURIComponent(content)}`,
+    to: schedule.phone,
+    from: process.env.TWILIO_PHONE_NUMBER,
+    statusCallback: `${process.env.BASE_URL}/api/v1/voice/callback`,
+    statusCallbackMethod: 'POST'
+  })
+
+  // Update schedule
+  await updateCallingSchedule(scheduleId, {
+    last_call: new Date(),
+    next_call: calculateNextCall(schedule.cron),
+    total_calls: schedule.total_calls + 1
+  })
+
+  return call
+}
+
+async function generateCallContent(user: any, contentType: string): Promise<string> {
+  if (contentType === 'market_update') {
+    // Get market data
+    const marketSummary = await getMarketSummary()
+    const portfolio = await getUserPortfolio(user.id)
+
+    return `
+      Good morning ${user.name}! This is TensorTrade calling with your market update.
+      
+      The S&P 500 is ${marketSummary.sp500_change > 0 ? 'up' : 'down'} ${Math.abs(marketSummary.sp500_change)}% today.
+      
+      Your portfolio is currently worth $${portfolio.total_value.toLocaleString()}, 
+      ${portfolio.daily_pnl > 0 ? 'up' : 'down'} $${Math.abs(portfolio.daily_pnl)} today.
+      
+      Would you like to hear more details?
+    `
+  }
+
+  return 'Hello from TensorTrade!'
+}
+
+// Webhook endpoint for TwiML
+// app/api/v1/voice/twiml/route.ts
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const content = searchParams.get('content')
+
+  const twiml = `
+    <?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+      <Say voice="alice">${content}</Say>
+      <Gather input="speech" action="/api/v1/voice/process">
+        <Say>Press 1 for portfolio details, 2 for top movers, or say your question.</Say>
+      </Gather>
+    </Response>
+  `
+
+  return new Response(twiml, {
+    headers: { 'Content-Type': 'text/xml' }
+  })
+}
+```
+
+#### Task 4.3: IPO Calendar Integration
+
+```typescript
+// lib/ipo/scraper.ts
+
+export async function scrapeIPOListings(): Promise<any[]> {
+  // Scrape from sources like:
+  // - NYSE/NASDAQ IPO calendar
+  // - DFM/ADX (UAE exchanges)
+  // - Saudi Stock Exchange
+
+  const listings = []
+
+  // Example: Scrape NASDAQ
+  const nasdaqIPOs = await scrapeNASDAQ()
+  listings.push(...nasdaqIPOs)
+
+  // Save to database
+  for (const ipo of listings) {
+    await saveIPOListing(ipo)
+  }
+
+  return listings
+}
+
+async function scrapeNASDAQ(): Promise<any[]> {
+  // Use puppeteer or cheerio
+  // Example placeholder
+  return [
+    {
+      company_name: 'Tech Corp',
+      ticker: 'TECH',
+      exchange: 'NASDAQ',
+      ipo_date: '2026-03-15',
+      price_range_low: 20,
+      price_range_high: 25,
+      sector: 'Technology',
+      description: 'AI software company'
+    }
+  ]
+}
+
+// API endpoint
+// app/api/v1/calendar/ipo/route.ts
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const shariahOnly = searchParams.get('shariah_only') === 'true'
+  const region = searchParams.get('region') || 'global'
+
+  let ipos = await getIPOListings({ region })
+
+  // Filter by Shariah if requested
+  if (shariahOnly) {
+    ipos = ipos.filter(ipo => ipo.shariah_compliant)
+  }
+
+  return NextResponse.json({ status: 'success', total: ipos.length, ipos })
+}
+
+// Cron job to run daily
+// scripts/scrape-ipos.ts
+async function main() {
+  console.log('Starting IPO scraper...')
+  await scrapeIPOListings()
+  console.log('IPO data updated')
+}
+
+// Run via cron: 0 2 * * * (daily at 2am)
+```
+
+**Checklist:**
+- [ ] Implement policy evaluator
+- [ ] Create policy templates
+- [ ] Build policy UI
+- [ ] Implement Twilio calling
+- [ ] Create TwiML webhook
+- [ ] Test voice calls manually
+- [ ] Build IPO scraper
+- [ ] Create IPO calendar UI
+- [ ] Set up cron jobs
+
+---
+
+### Phase 5: MCP Server & Self-Learning (Week 9-10)
+
+#### Task 5.1: MCP Server Implementation
+
+```bash
+# Create separate package
+mkdir packages/mcp-server
+cd packages/mcp-server
+npm init -y
+npm install @modelcontextprotocol/sdk
+```
+
+```typescript
+// packages/mcp-server/src/index.ts
+
+import { Server } from "@modelcontextprotocol/sdk/server/index.js"
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js"
+
+const API_KEY = process.env.TENSORTRADE_API_KEY
+const API_URL = process.env.TENSORTRADE_API_URL || 'https://api.tensortrade.ai'
+
+const server = new Server(
+  {
+    name: "tensortrade-mcp",
+    version: "1.0.0",
+  },
+  {
+    capabilities: {
+      tools: {},
+    },
+  }
+)
+
+// Define tools
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [
+      {
+        name: "analyze_asset",
+        description: "Analyze a stock, crypto, or commodity using TensorTrade's 5-agent debate system",
+        inputSchema: {
+          type: "object",
+          properties: {
+            asset: {
+              type: "string",
+              description: "Asset symbol (e.g., AAPL, BTC-USD)"
+            },
+            include: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["debate", "behavioral", "shariah", "calendar"]
+              }
+            }
+          },
+          required: ["asset"]
+        }
+      },
+      {
+        name: "get_portfolio",
+        description: "Get user's portfolio with current values and P&L",
+        inputSchema: {
+          type: "object",
+          properties: {
+            user_id: { type: "string" }
+          },
+          required: ["user_id"]
+        }
+      },
+      {
+        name: "screen_shariah",
+        description: "Check if an asset is Shariah-compliant",
+        inputSchema: {
+          type: "object",
+          properties: {
+            asset: { type: "string" }
+          },
+          required: ["asset"]
+        }
+      },
+      // Add more tools...
+    ],
+  }
+})
+
+// Handle tool calls
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params
+
+  try {
+    switch (name) {
+      case "analyze_asset":
+        return await analyzeAsset(args)
+      case "get_portfolio":
+        return await getPortfolio(args)
+      case "screen_shariah":
+        return await screenShariah(args)
+      default:
+        throw new Error(`Unknown tool: ${name}`)
+    }
+  } catch (error: any) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error: ${error.message}`
+        }
+      ]
+    }
+  }
+})
+
+async function analyzeAsset(args: any) {
+  const response = await fetch(`${API_URL}/v1/analyze`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(args)
+  })
+
+  const data = await response.json()
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(data, null, 2)
+      }
+    ]
+  }
+}
+
+async function getPortfolio(args: any) {
+  // Similar implementation
+}
+
+async function screenShariah(args: any) {
+  // Similar implementation
+}
+
+// Start server
+const transport = new StdioServerTransport()
+await server.connect(transport)
+```
+
+**Publish to NPM:**
+
+```json
+// packages/mcp-server/package.json
+{
+  "name": "@tensortrade/mcp-server",
+  "version": "1.0.0",
+  "description": "TensorTrade MCP server for Claude Desktop",
+  "main": "dist/index.js",
+  "bin": {
+    "tensortrade-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["mcp", "trading", "ai", "claude"],
+  "author": "TensorTrade",
+  "license": "MIT"
+}
+```
+
+#### Task 5.2: Self-Learning System
+
+```typescript
+// lib/learning/feedback-collector.ts
+
+export async function collectFeedback(params: {
+  userId: string
+  analysisId: string
+  agentName: string
+  prediction: any
+  rating: number
+  helpful: boolean
+  comment?: string
+}) {
+  await db.agent_feedback.create({
+    data: {
+      user_id: params.userId,
+      analysis_id: params.analysisId,
+      agent_name: params.agentName,
+      prediction: params.prediction,
+      user_rating: params.rating,
+      helpful: params.helpful,
+      comment: params.comment,
+      created_at: new Date()
+    }
+  })
+}
+
+// lib/learning/model-updater.ts
+
+export async function runWeeklyLearning() {
+  console.log('Starting weekly learning job...')
+
+  // 1. Agent performance evaluation
+  const agentScores = await evaluateAgentPerformance()
+  await updateAgentWeights(agentScores)
+
+  // 2. Pattern refinement
+  const patternAccuracy = await analyzeBehavioralPatterns()
+  await adjustDetectionThresholds(patternAccuracy)
+
+  // 3. Shariah consensus building
+  const shariahFeedback = await getScholarFeedback()
+  await updateShariahScoringModel(shariahFeedback)
+
+  // 4. Generate report
+  const report = generateLearningReport({
+    agentScores,
+    patternAccuracy,
+    shariahFeedback
+  })
+
+  // 5. Notify team
+  await sendTeamNotification(report)
+
+  console.log('Weekly learning completed')
+}
+
+async function evaluateAgentPerformance() {
+  const feedback = await db.agent_feedback.findMany({
+    where: {
+      created_at: {
+        gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
+      },
+      actual_outcome: { not: null }
+    }
+  })
+
+  const scores = {
+    'Macro Hawk': { correct: 0, total: 0 },
+    'Micro Forensic': { correct: 0, total: 0 },
+    // ... other agents
+  }
+
+  for (const item of feedback) {
+    const agent = item.agent_name
+    scores[agent].total++
+
+    // Check if prediction was correct
+    if (item.accuracy_score && item.accuracy_score > 70) {
+      scores[agent].correct++
+    }
+  }
+
+  // Calculate accuracy
+  for (const agent in scores) {
+    scores[agent].accuracy = scores[agent].correct / scores[agent].total
+  }
+
+  return scores
+}
+
+async function updateAgentWeights(scores: any) {
+  // Adjust weights in ensemble model
+  // Higher accuracy → higher weight
+  const weights = {}
+  for (const agent in scores) {
+    weights[agent] = scores[agent].accuracy
+  }
+
+  await saveAgentWeights(weights)
+}
+
+// Cron job
+// scripts/weekly-learning.ts
+import { runWeeklyLearning } from '@/lib/learning/model-updater'
+
+async function main() {
+  await runWeeklyLearning()
+}
+
+// Run via cron: 0 0 * * 0 (weekly on Sunday midnight)
+```
+
+**Checklist:**
+- [ ] Build MCP server package
+- [ ] Implement all MCP tools
+- [ ] Test with Claude Desktop
+- [ ] Publish to NPM
+- [ ] Create feedback collection UI
+- [ ] Implement learning algorithms
+- [ ] Set up cron jobs
+- [ ] Test learning pipeline
+
+---
+
+### Phase 6: Testing & Polish (Week 11-12)
+
+#### Task 6.1: Comprehensive Testing
+
+**Unit Tests:**
+
+```typescript
+// __tests__/agents/shariah.test.ts
+
+import { checkShariahCompliance } from '@/lib/agents/shariah'
+
+describe('Shariah Compliance Agent', () => {
+  it('should mark halal asset as compliant', async () => {
+    const result = await checkShariahCompliance('AAPL')
+    expect(result.compliant).toBe(true)
+    expect(result.score).toBeGreaterThan(70)
+  })
+
+  it('should mark haram asset as non-compliant', async () => {
+    const result = await checkShariahCompliance('JPM') // Bank
+    expect(result.compliant).toBe(false)
+    expect(result.score).toBeLessThan(50)
+  })
+
+  it('should provide breakdown', async () => {
+    const result = await checkShariahCompliance('GOOGL')
+    expect(result.breakdown).toHaveProperty('business')
+    expect(result.breakdown).toHaveProperty('debt_ratio')
+  })
+})
+```
+
+**Integration Tests:**
+
+```typescript
+// __tests__/api/analyze.test.ts
+
+import { POST } from '@/app/api/v1/analyze/route'
+
+describe('POST /api/v1/analyze', () => {
+  it('should return analysis for valid asset', async () => {
+    const req = new Request('http://localhost/api/v1/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ asset: 'AAPL', include: ['debate'] })
+    })
+
+    const res = await POST(req)
+    const data = await res.json()
+
+    expect(data.status).toBe('success')
+    expect(data.asset).toBe('AAPL')
+    expect(data.analysis.debate).toBeDefined()
+  })
+
+  it('should reject invalid asset', async () => {
+    const req = new Request('http://localhost/api/v1/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ asset: 'INVALID' })
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+  })
+})
+```
+
+**E2E Tests:**
+
+```typescript
+// e2e/dashboard.spec.ts
+
+import { test, expect } from '@playwright/test'
+
+test('user can analyze asset', async ({ page }) => {
+  // Login
+  await page.goto('/login')
+  await page.fill('[name="email"]', 'test@example.com')
+  await page.fill('[name="password"]', 'password123')
+  await page.click('button[type="submit"]')
+
+  // Navigate to analyze page
+  await page.goto('/dashboard/analyze')
+
+  // Enter asset
+  await page.fill('[name="asset"]', 'AAPL')
+  await page.click('button:has-text("Analyze")')
+
+  // Wait for results
+  await page.waitForSelector('[data-testid="analysis-result"]')
+
+  // Verify 5 agents displayed
+  const agents = await page.$$('[data-testid="agent-card"]')
+  expect(agents.length).toBe(5)
+
+  // Verify recommendation shown
+  const recommendation = await page.textContent('[data-testid="recommendation"]')
+  expect(recommendation).toBeTruthy()
+})
+```
+
+#### Task 6.2: Performance Optimization
+
+**Implement caching:**
+
+```typescript
+// lib/cache/redis.ts
+
+import Redis from 'ioredis'
+
+const redis = new Redis(process.env.REDIS_URL)
+
+export async function cached<T>(
+  key: string,
+  ttl: number,
+  fetcher: () => Promise<T>
+): Promise<T> {
+  // Try cache first
+  const cached = await redis.get(key)
+  if (cached) {
+    return JSON.parse(cached)
+  }
+
+  // Fetch fresh data
+  const data = await fetcher()
+
+  // Cache it
+  await redis.setex(key, ttl, JSON.stringify(data))
+
+  return data
+}
+
+// Usage in API
+export async function GET(req: Request) {
+  const asset = 'AAPL'
+
+  const data = await cached(
+    `market_data:${asset}`,
+    300, // 5 minutes
+    () => getMarketData(asset)
+  )
+
+  return NextResponse.json(data)
+}
+```
+
+**Database indexing:**
+
+```sql
+-- Add indexes for common queries
+CREATE INDEX CONCURRENTLY idx_trades_user_timestamp 
+ON trades(user_id, timestamp DESC);
+
+CREATE INDEX CONCURRENTLY idx_feedback_analysis 
+ON agent_feedback(analysis_id);
+
+CREATE INDEX CONCURRENTLY idx_policies_user_active 
+ON trading_policies(user_id, active) 
+WHERE active = true;
+
+-- Analyze tables
+ANALYZE trades;
+ANALYZE agent_feedback;
+ANALYZE trading_policies;
+```
+
+#### Task 6.3: Documentation
+
+**API Documentation (Swagger):**
+
+```typescript
+// app/api/docs/route.ts
+
+import { NextResponse } from 'next/server'
+
+const openApiSpec = {
+  openapi: '3.0.0',
+  info: {
+    title: 'TensorTrade API',
+    version: '1.0.0',
+    description: 'AI-powered trading analysis API'
+  },
+  servers: [
+    { url: 'https://api.tensortrade.ai/v1' }
+  ],
+  paths: {
+    '/analyze': {
+      post: {
+        summary: 'Analyze asset',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  asset: { type: 'string' },
+                  include: { type: 'array', items: { type: 'string' } }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Success',
+            content: {
+              'application/json': {
+                schema: {
+                  // ... response schema
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+export async function GET() {
+  return NextResponse.json(openApiSpec)
+}
+```
+
+**User Guide:**
+
+Create `/docs/user-guide.md` with screenshots and tutorials.
+
+**Checklist:**
+- [ ] Write unit tests (>80% coverage)
+- [ ] Write integration tests
+- [ ] Write E2E tests
+- [ ] Run performance tests
+- [ ] Implement caching
+- [ ] Add database indexes
+- [ ] Create API docs (Swagger)
+- [ ] Write user guide
+- [ ] Create video tutorials
+
+---
+
+### Phase 7: Launch Preparation (Week 12)
+
+#### Task 7.1: Security Audit
+
+```bash
+# Run security scan
+npm audit
+npm audit fix
+
+# Check dependencies
+npx depcheck
+
+# Scan for secrets
+npm install -g trufflehog
+trufflehog filesystem . --only-verified
+```
+
+**Security checklist:**
+- [ ] No API keys in code
+- [ ] SQL injection prevention (use ORMs)
+- [ ] XSS protection (sanitize inputs)
+- [ ] CSRF tokens (Next.js auto-handles)
+- [ ] Rate limiting on all endpoints
+- [ ] HTTPS enforced
+- [ ] Secure cookies (httpOnly, secure)
+
+#### Task 7.2: Production Deployment
+
+**Environment setup:**
+
+```bash
+# Vercel deployment
+vercel --prod
+
+# Or Railway
+railway up
+
+# Set production env vars
+vercel env add OPENROUTER_API_KEY production
+vercel env add DATABASE_URL production
+# ... all env vars
+```
+
+**Monitoring setup:**
+
+```typescript
+// lib/monitoring/sentry.ts
+
+import * as Sentry from "@sentry/nextjs"
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV,
+  tracesSampleRate: 1.0,
+})
+
+// lib/monitoring/analytics.ts
+
+import posthog from 'posthog-js'
+
+posthog.init(process.env.POSTHOG_API_KEY!, {
+  api_host: 'https://app.posthog.com'
+})
+
+export function trackEvent(event: string, properties?: any) {
+  posthog.capture(event, properties)
+}
+```
+
+#### Task 7.3: Launch Checklist
+
+**Pre-launch:**
+- [ ] All tests passing
+- [ ] No console errors
+- [ ] Mobile responsive
+- [ ] Browser compatibility (Chrome, Safari, Firefox)
+- [ ] SSL certificate active
+- [ ] DNS configured
+- [ ] Email configured (SendGrid/Resend)
+- [ ] Stripe billing tested
+- [ ] Terms of Service live
+- [ ] Privacy Policy live
+- [ ] Status page setup (status.tensortrade.ai)
+
+**Launch Day:**
+- [ ] Deploy to production
+- [ ] Smoke test all features
+- [ ] Monitor error rates (Sentry)
+- [ ] Monitor performance (Vercel Analytics)
+- [ ] Post on Product Hunt
+- [ ] Tweet announcement
+- [ ] Email newsletter
+- [ ] Update LinkedIn
+- [ ] Join relevant Discord/Slack communities
+
+**Post-Launch (Week 1):**
+- [ ] Monitor user signups
+- [ ] Track conversion rates
+- [ ] Fix critical bugs immediately
+- [ ] Respond to support tickets <4 hours
+- [ ] Collect user feedback
+- [ ] Iterate on UX pain points
+
+---
+
+## 🔄 Development Workflow
+
+### Daily Routine
+
+**Morning:**
+1. Pull latest from main
+2. Review open issues
+3. Plan day's tasks
+4. Create feature branch
+
+**Development:**
+```bash
+# Feature branch
+git checkout -b feature/voice-agent
+
+# Make changes
+# ... code ...
+
+# Test locally
+npm run dev
+# Test feature manually
+
+# Run tests
+npm test
+
+# Commit
+git add .
+git commit -m "feat: add voice calling agent"
+
+# Push
+git push origin feature/voice-agent
+```
+
+**Evening:**
+1. Create PR
+2. Request review
+3. Update task tracker
+4. Document progress
+
+### Code Review Checklist
+
+Before merging:
+- [ ] Code follows existing patterns
+- [ ] Tests added/updated
+- [ ] Documentation updated
+- [ ] No breaking changes to existing features
+- [ ] Performance impact minimal
+- [ ] Security considerations addressed
+
+---
+
+## 🚨 Critical Reminders
+
+### DO:
+✅ **Analyze existing code first** before writing anything new  
+✅ **Extend existing features** instead of replacing  
+✅ **Write tests** for every new feature  
+✅ **Document your changes** in code comments  
+✅ **Use TypeScript** for type safety  
+✅ **Follow existing patterns** and conventions  
+✅ **Commit frequently** with clear messages  
+✅ **Test on multiple devices** (desktop, mobile)  
+
+### DON'T:
+❌ **Delete existing working code** without understanding it  
+❌ **Skip testing** existing features after changes  
+❌ **Hardcode values** - use env vars and config  
+❌ **Commit API keys** or secrets  
+❌ **Rush to production** without thorough testing  
+❌ **Ignore TypeScript errors**  
+❌ **Break existing user workflows**  
+
+---
+
+## 📊 Progress Tracking
+
+Use this template to track progress:
+
+```markdown
+## Week 1-2 Progress
+
+### Completed ✅
+- [x] Database schema additions
+- [x] New API routes created
+- [x] Environment variables configured
+
+### In Progress 🚧
+- [ ] Agent implementation (70% done)
+- [ ] Testing framework setup
+
+### Blockers 🚫
+- Waiting for Twilio account approval
+- Need design mockups for policies page
+
+### Next Week Plan
+- Complete all 5 agents
+- Start dashboard UI
+- Begin testing
+```
+
+---
+
+## 🎓 Learning Resources
+
+**Next.js 14:**
+- [Official Docs](https://nextjs.org/docs)
+- [App Router Guide](https://nextjs.org/learn)
+
+**TypeScript:**
+- [Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
+- [Type Challenges](https://github.com/type-challenges/type-challenges)
+
+**Testing:**
+- [Vitest Docs](https://vitest.dev/)
+- [Playwright Docs](https://playwright.dev/)
+
+**LangChain (for agents):**
+- [JS Docs](https://js.langchain.com/docs)
+- [Agent Examples](https://js.langchain.com/docs/modules/agents/)
+
+---
+
+## 🤝 Getting Help
+
+**Stuck? Here's how to get unblocked:**
+
+1. **Check existing code** - Solution might already exist
+2. **Read documentation** - Next.js, library docs
+3. **Search GitHub issues** - Someone may have solved this
+4. **Ask the team** - Slack/Discord
+5. **Search Stack Overflow**
+6. **Create detailed issue** with:
+   - What you're trying to do
+   - What you tried
+   - Error messages
+   - Code snippets
+
+---
+
+## ✅ Final Pre-Deployment Checklist
+
+### Code Quality
+- [ ] All TypeScript errors resolved
+- [ ] Linter passes with no warnings
+- [ ] All tests passing (unit, integration, E2E)
+- [ ] Test coverage >80%
+- [ ] No console.log statements in production code
+- [ ] Error handling comprehensive
+
+### Performance
+- [ ] Lighthouse score >90 (mobile & desktop)
+- [ ] API response times <2s (p95)
+- [ ] Database queries optimized
+- [ ] Images optimized (WebP, lazy loading)
+- [ ] Caching implemented
+- [ ] Bundle size acceptable (<500kb initial)
+
+### Security
+- [ ] No secrets in code
+- [ ] All inputs validated
+- [ ] SQL injection prevented
+- [ ] XSS protection enabled
+- [ ] CSRF protection enabled
+- [ ] Rate limiting on all endpoints
+- [ ] HTTPS enforced
+- [ ] Security headers configured
+
+### Functionality
+- [ ] All existing features work
+- [ ] All new features work
+- [ ] Mobile responsive
+- [ ] Cross-browser tested
+- [ ] Error states handled
+- [ ] Loading states shown
+- [ ] Empty states designed
+
+### Documentation
+- [ ] README updated
+- [ ] API docs complete
+- [ ] User guide created
+- [ ] Changelog maintained
+- [ ] Code comments added
+
+### Deployment
+- [ ] Environment variables set
+- [ ] Database migrated
+- [ ] Redis configured
+- [ ] Monitoring setup (Sentry, PostHog)
+- [ ] Backup strategy implemented
+- [ ] SSL certificate active
+- [ ] DNS configured
+- [ ] Status page ready
+
+### Legal
+- [ ] Terms of Service live
+- [ ] Privacy Policy live
+- [ ] Cookie consent banner
+- [ ] GDPR compliance
+- [ ] Data deletion process
+
+### Launch Materials
+- [ ] Product Hunt post ready
+- [ ] Social media posts scheduled
+- [ ] Email announcement drafted
+- [ ] Demo video recorded
+- [ ] Screenshots updated
+- [ ] Press kit available
+
+---
+
+## 🎉 You're Ready to Build!
+
+**Remember:** 
+- Start small, iterate fast
+- Preserve existing functionality
+- Test thoroughly
+- Document everything
+- Ship incrementally
+
+**Now go build something amazing! 🚀**
+
+---
+
+## Quick Reference Commands
+
+```bash
+# Development
+npm run dev              # Start dev server
+npm run build           # Build for production
+npm run start           # Start production server
+npm run lint            # Run linter
+npm run type-check      # Check TypeScript
+
+# Testing
+npm test                # Run unit tests
+npm run test:e2e        # Run E2E tests
+npm run test:coverage   # Generate coverage report
+
+# Database
+npx prisma migrate dev  # Run migrations (dev)
+npx prisma studio       # Open DB GUI
+npx prisma generate     # Generate Prisma client
+
+# Deployment
+vercel --prod           # Deploy to Vercel
+railway up              # Deploy to Railway
+
+# Monitoring
+npm run logs            # View production logs
+npm run analyze         # Analyze bundle size
+```
+
+---
+
+**END OF MASTER PROMPT**
+
+*This prompt is designed to be comprehensive, actionable, and safe. It prioritizes preserving existing functionality while building new features incrementally.*
+
+*Version: 1.0.0*  
+*Last Updated: February 14, 2026*
