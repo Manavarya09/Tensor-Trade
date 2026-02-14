@@ -151,43 +151,39 @@ export default function AnalyzePage() {
     setAnalysisData(null);
 
     try {
+      setStatusMessage('Calling analysis endpoint...');
+
+      // Use the stable non-stream endpoint first to avoid hanging streams.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 45000);
+
       const response = await fetch(
-        `${API_BASE_URL}/analyze-asset-stream?asset=${encodeURIComponent(assetSymbol)}&user_id=${encodeURIComponent(userId)}`
+        `${API_BASE_URL}/analyze-asset?asset=${encodeURIComponent(assetSymbol)}&user_id=${encodeURIComponent(userId)}`,
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
+
+      clearTimeout(timeout);
 
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`);
       }
 
-      if (!response.body) throw new Error('No response body');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const event = JSON.parse(line);
-            handleStreamEvent(event);
-          } catch (e) {
-            console.error('Error parsing JSON stream:', e);
-          }
-        }
-      }
-
+      const result = await response.json();
+      setAnalysisData(result);
       setStatusMessage('Analysis complete');
     } catch (error: any) {
       console.error('Analysis failed:', error);
-      setStatusMessage('Analysis failed. Switching to Demo Mode.');
+      if (error?.name === 'AbortError') {
+        setStatusMessage('Analysis timed out. Switching to Demo Mode...');
+      } else {
+        setStatusMessage('Analysis failed. Switching to Demo Mode...');
+      }
       alert(`Analysis failed: ${error.message}. Switching to Demo Mode.`);
       await executeDemoSimulation();
     } finally {
@@ -197,37 +193,6 @@ export default function AnalyzePage() {
 
   const runAnalysis = async () => {
     await runAnalysisForAsset(asset);
-  };
-
-  const handleStreamEvent = (event: any) => {
-    if (event.type === 'status') {
-      setStatusMessage(event.message);
-    } else if (event.type === 'agent_result') {
-      const newOpinion: AgentOpinion = {
-        agentName: event.agent || event.data?.agent_name || 'Agent',
-        thesis: event.data?.thesis || '',
-        confidence: event.data?.confidence || 'MEDIUM',
-        supportingPoints: event.data?.supporting_points || [],
-      };
-      setAgentOpinions(prev => [...prev, newOpinion]);
-    } else if (event.type === 'complete' || event.type === 'debate_complete') {
-      setAnalysisData(event.data);
-      
-      // Parse agent opinions if not already set
-      if (event.data?.market_analysis?.council_opinions && agentOpinions.length === 0) {
-        const opinions = event.data.market_analysis.council_opinions.map((op: string, idx: number) => {
-          const agentNames = ['🦅 Macro Hawk', '🔬 Micro Forensic', '💧 Flow Detective', '📊 Tech Interpreter', '🤔 Skeptic'];
-          return {
-            agentName: agentNames[idx] || 'Agent',
-            thesis: op.replace(/^[^\s]+\s/, ''),
-            confidence: 'HIGH',
-          };
-        });
-        setAgentOpinions(opinions);
-      }
-    } else if (event.type === 'error') {
-      setStatusMessage(`Error: ${event.message}`);
-    }
   };
 
   const downloadReport = () => {
