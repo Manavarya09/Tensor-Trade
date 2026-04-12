@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TensorTrade — Frontend Dashboard
+
+Next.js App Router dashboard for the TensorTrade multi-agent trading psychology platform.
+
+## Stack
+
+- **Next.js 14** (App Router)
+- **TypeScript**
+- **Tailwind CSS**
+- Brutalist black/white design system — no rounded corners, heavy black borders, no colors
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The backend must be running on port 8000. See the root `README.md` for backend setup.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Pages
 
-## Learn More
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page |
+| `/auth/login` | Login |
+| `/auth/signup` | Sign up |
+| `/dashboard` | Portfolio overview |
+| `/dashboard/analyze` | Multi-agent AI analysis |
+| `/dashboard/trading` | Stock trading, watchlist, IPOs |
+| `/dashboard/wallet` | Wallet and transactions |
+| `/dashboard/policies` | Trading policies CRUD |
+| `/dashboard/investments` | Shariah screener and curated portfolios |
+| `/dashboard/voice` | Voice agent (ElevenLabs / Twilio) |
+| `/dashboard/calling-agent` | Scheduled AI calling |
 
-To learn more about Next.js, take a look at the following resources:
+## Environment Variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Create `.env.local` in this directory:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+├── app/                  # App Router pages
+│   ├── dashboard/        # Dashboard pages
+│   └── auth/             # Auth pages
+├── components/
+│   └── ui/               # Reusable UI components (Card, Button, Input)
+└── lib/
+    ├── api.ts            # Typed API client — all backend calls go through apiFetch()
+    ├── auth.ts           # localStorage-based auth
+    └── utils.ts          # cn() and other utilities
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Design System
+
+All UI follows a brutalist black/white aesthetic:
+- White backgrounds, `border-4 border-black` containers
+- No `rounded-*` classes — sharp corners everywhere
+- UPPERCASE labels, bold weights
+- Buttons: `bg-black text-white` with hover invert
+- No dark mode, no gradients, no accent colors
