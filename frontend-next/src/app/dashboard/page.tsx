@@ -1,67 +1,101 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import Card from '@/components/ui/Card';
+import {
+  getPortfolio,
+  getWalletTransactions,
+  PortfolioHolding,
+  PortfolioSummary,
+  WalletTransaction,
+} from '@/lib/api';
 
 export default function PortfolioPage() {
-  const portfolioStats = [
-    {
-      label: 'Total Value',
-      value: 'AED 460,329.94',
-      change: '+12.5%',
-      positive: true,
-    },
-    {
-      label: 'Today\'s Gain/Loss',
-      value: '+AED 8,588.53',
-      change: '+1.9%',
-      positive: true,
-    },
-    {
-      label: 'Total Investments',
-      value: 'AED 367,000.00',
-      change: '15 stocks',
-      positive: true,
-    },
-    {
-      label: 'Total Return',
-      value: '+AED 93,329.94',
-      change: '+25.4%',
-      positive: true,
+  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [portfolioRes, txRes] = await Promise.all([
+        getPortfolio(),
+        getWalletTransactions(),
+      ]);
+      setPortfolio(portfolioRes);
+      setTransactions((txRes.transactions ?? []).slice(0, 5));
+    } catch {
+      // backend offline — render empty state without crashing
+    } finally {
+      setLoading(false);
     }
-  ];
+  }, []);
 
-  const holdings = [
-    { symbol: 'AAPL', name: 'Apple Inc.', shares: 50, price: 175.43, value: 8771.50, change: 2.3, shariah: true },
-    { symbol: 'MSFT', name: 'Microsoft Corp.', shares: 30, price: 378.91, value: 11367.30, change: 1.8, shariah: true },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', shares: 25, price: 141.80, value: 3545.00, change: -0.5, shariah: false },
-    { symbol: 'TSLA', name: 'Tesla Inc.', shares: 40, price: 248.50, value: 9940.00, change: 3.2, shariah: true },
-    { symbol: 'NVDA', name: 'NVIDIA Corp.', shares: 60, price: 875.28, value: 52516.80, change: 5.1, shariah: true },
-  ];
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  const recentTransactions = [
-    { type: 'Buy', symbol: 'NVDA', shares: 10, price: 870.00, date: '2026-02-14', time: '09:30 AM' },
-    { type: 'Sell', symbol: 'GOOGL', shares: 5, price: 142.50, date: '2026-02-13', time: '02:15 PM' },
-    { type: 'Buy', symbol: 'AAPL', shares: 15, price: 173.20, date: '2026-02-12', time: '11:45 AM' },
-  ];
+  const currency = portfolio?.currency ?? 'AED';
+
+  const fmt = (n: number) =>
+    n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const portfolioStats = portfolio
+    ? [
+        {
+          label: 'Total Value',
+          value: `${currency} ${fmt(portfolio.total_value)}`,
+          change: `${portfolio.total_pnl_percent >= 0 ? '+' : ''}${portfolio.total_pnl_percent.toFixed(1)}%`,
+          positive: portfolio.total_pnl_percent >= 0,
+        },
+        {
+          label: "Today's Gain/Loss",
+          value: `${portfolio.total_pnl >= 0 ? '+' : ''}${currency} ${fmt(portfolio.total_pnl)}`,
+          change: `${portfolio.holdings_count} holdings`,
+          positive: portfolio.total_pnl >= 0,
+        },
+        {
+          label: 'Invested',
+          value: `${currency} ${fmt(portfolio.invested_value)}`,
+          change: `Cash: ${currency} ${fmt(portfolio.cash_balance)}`,
+          positive: true,
+        },
+        {
+          label: 'Wallet Balance',
+          value: `${currency} ${fmt(portfolio.wallet_balance)}`,
+          change: `${portfolio.token_symbol} tokens`,
+          positive: true,
+        },
+      ]
+    : [];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="text-xl font-bold uppercase">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {portfolioStats.map((stat, index) => (
-            <Card key={index} className="p-6">
-              <div className="space-y-3">
-                <div className="text-xs font-bold uppercase tracking-wide">{stat.label}</div>
-                <div className="text-3xl font-bold">{stat.value}</div>
-                <div className="text-sm font-bold">{stat.change}</div>
-              </div>
-            </Card>
-          ))}
-        </div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {portfolioStats.map((stat, index) => (
+          <Card key={index} className="p-6">
+            <div className="space-y-3">
+              <div className="text-xs font-bold uppercase tracking-wide">{stat.label}</div>
+              <div className="text-3xl font-bold">{stat.value}</div>
+              <div className="text-sm font-bold">{stat.change}</div>
+            </div>
+          </Card>
+        ))}
+      </div>
 
-        {/* Holdings Table */}
-        <Card className="p-6">
-          <h2 className="text-xl font-bold uppercase mb-6 border-b-4 border-black pb-3">Your Holdings</h2>
+      {/* Holdings Table */}
+      <Card className="p-6">
+        <h2 className="text-xl font-bold uppercase mb-6 border-b-4 border-black pb-3">Your Holdings</h2>
+        {portfolio?.holdings.length ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -71,28 +105,24 @@ export default function PortfolioPage() {
                   <th className="text-right font-bold uppercase text-xs py-3 px-4">Shares</th>
                   <th className="text-right font-bold uppercase text-xs py-3 px-4">Price</th>
                   <th className="text-right font-bold uppercase text-xs py-3 px-4">Value</th>
-                  <th className="text-right font-bold uppercase text-xs py-3 px-4">Change</th>
+                  <th className="text-right font-bold uppercase text-xs py-3 px-4">P&L</th>
                   <th className="text-center font-bold uppercase text-xs py-3 px-4">Shariah</th>
                 </tr>
               </thead>
               <tbody>
-                {holdings.map((holding, index) => (
+                {portfolio.holdings.map((h: PortfolioHolding, index: number) => (
                   <tr key={index} className="border-b-2 border-black hover:bg-black hover:text-white">
-                    <td className="py-4 px-4">
-                      <span className="font-bold">{holding.symbol}</span>
-                    </td>
-                    <td className="py-4 px-4">{holding.name}</td>
-                    <td className="py-4 px-4 text-right">{holding.shares}</td>
-                    <td className="py-4 px-4 text-right">AED {holding.price.toFixed(2)}</td>
+                    <td className="py-4 px-4"><span className="font-bold">{h.symbol}</span></td>
+                    <td className="py-4 px-4">{h.name}</td>
+                    <td className="py-4 px-4 text-right">{h.quantity}</td>
+                    <td className="py-4 px-4 text-right">{currency} {fmt(h.current_price)}</td>
+                    <td className="py-4 px-4 text-right font-bold">{currency} {fmt(h.market_value)}</td>
                     <td className="py-4 px-4 text-right font-bold">
-                      AED {holding.value.toFixed(2)}
-                    </td>
-                    <td className="py-4 px-4 text-right font-bold">
-                      {holding.change > 0 ? '+' : ''}{holding.change}%
+                      {h.pnl >= 0 ? '+' : ''}{h.pnl_percent.toFixed(1)}%
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <span className={`px-3 py-1 font-bold text-xs border-2 border-black ${holding.shariah ? 'bg-black text-white' : 'bg-white text-black'}`}>
-                        {holding.shariah ? 'YES' : 'NO'}
+                      <span className={`px-3 py-1 font-bold text-xs border-2 border-black ${h.shariah ? 'bg-black text-white' : 'bg-white text-black'}`}>
+                        {h.shariah ? 'YES' : 'NO'}
                       </span>
                     </td>
                   </tr>
@@ -100,33 +130,40 @@ export default function PortfolioPage() {
               </tbody>
             </table>
           </div>
-        </Card>
+        ) : (
+          <div className="py-12 text-center font-bold uppercase text-gray-500">No holdings yet</div>
+        )}
+      </Card>
 
-        {/* Recent Transactions */}
-        <Card className="p-6">
-          <h2 className="text-xl font-bold uppercase mb-6 border-b-4 border-black pb-3">Recent Transactions</h2>
+      {/* Recent Transactions */}
+      <Card className="p-6">
+        <h2 className="text-xl font-bold uppercase mb-6 border-b-4 border-black pb-3">Recent Transactions</h2>
+        {transactions.length ? (
           <div className="space-y-4">
-            {recentTransactions.map((transaction, index) => (
+            {transactions.map((tx: WalletTransaction, index: number) => (
               <div key={index} className="border-4 border-black p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <div className={`px-4 py-2 font-bold text-xs border-2 border-black ${transaction.type === 'Buy' ? 'bg-black text-white' : 'bg-white text-black'}`}>
-                      {transaction.type.toUpperCase()}
+                    <div className={`px-4 py-2 font-bold text-xs border-2 border-black ${tx.type === 'credit' ? 'bg-black text-white' : 'bg-white text-black'}`}>
+                      {tx.type.toUpperCase()}
                     </div>
                     <div>
-                      <div className="font-bold">{transaction.symbol}</div>
-                      <div className="text-sm">{transaction.shares} shares @ AED {transaction.price}</div>
+                      <div className="font-bold">{tx.description}</div>
+                      <div className="text-sm">{tx.reference}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold">{transaction.date}</div>
-                    <div className="text-sm">{transaction.time}</div>
+                    <div className="font-bold">{currency} {fmt(tx.amount)}</div>
+                    <div className="text-sm">{new Date(tx.timestamp).toLocaleDateString()}</div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </Card>
-      </div>
+        ) : (
+          <div className="py-12 text-center font-bold uppercase text-gray-500">No transactions yet</div>
+        )}
+      </Card>
+    </div>
   );
 }
