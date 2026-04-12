@@ -47,3 +47,4 @@ node_modules/
 
 # Project specific
 debate-lens/
+.vercel
