@@ -18,7 +18,7 @@ interface AgentActionsPanelProps {
     onAnalysisComplete?: (data: any) => void;
 }
 
-export function AgentActionsPanel({ userId, asset, onAnalysisComplete }: Agent ActionsPanelProps) {
+export function AgentActionsPanel({ userId, asset, onAnalysisComplete }: AgentActionsPanelProps) {
     const [isProcessing, setIsProcessing] = useState(false);
     const [activeAgent, setActiveAgent] = useState<string | null>(null);
 
