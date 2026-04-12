@@ -107,7 +107,7 @@ export default function LoginPage() {
 
             <button
               type="submit" 
-              className="w-full text-xl font-black uppercase bg-black text-white border-4 border-black py-4 hover:bg-white hover:text-black transition-all shadow-[6px_6px_0px_0px_#FF5722] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-xl font-black uppercase bg-black text-white border-4 border-black py-4 hover:bg-white hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
               {loading ? 'Authenticating...' : 'Access Terminal'}
