@@ -146,7 +146,7 @@ export default function SignupPage() {
 
             <button
               type="submit" 
-              className="w-full text-xl font-black uppercase bg-orange-600 text-white border-4 border-black py-4 hover:bg-black hover:text-white transition-all shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-xl font-black uppercase bg-black text-white border-4 border-black py-4 hover:bg-white hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
               {loading ? 'Registering...' : 'Initialize Account'}
@@ -156,7 +156,7 @@ export default function SignupPage() {
           <div className="mt-8 pt-8 border-t-2 border-black text-center">
             <p className="font-bold text-gray-500 uppercase text-sm">
               Already Registered?{' '}
-              <Link href="/auth/login" className="text-orange-600 hover:text-black hover:underline decoration-2">
+              <Link href="/auth/login" className="font-bold hover:underline decoration-2">
                 Access Terminal
               </Link>
             </p>
