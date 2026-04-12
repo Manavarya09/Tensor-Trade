@@ -3,9 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Chart } from './Chart';
 import { CandlestickData } from 'lightweight-charts';
-
-// API Configuration
-const API_BASE_URL = 'http://localhost:8000';
+import { API_BASE_URL } from '@/lib/api';
 
 const DEMO_DATA = {
     "asset": "AAPL",
