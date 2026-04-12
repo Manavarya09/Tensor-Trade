@@ -140,8 +140,8 @@ export default function CallingAgentPage() {
         </div>
 
         {error && (
-          <div className="border-4 border-red-600 p-4 bg-red-50 text-red-800 font-bold">
-            BACKEND ERROR: {error}
+          <div className="border-4 border-black p-4 bg-gray-100 font-bold uppercase">
+            Backend Error: {error}
           </div>
         )}
 
