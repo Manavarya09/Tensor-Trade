@@ -41,7 +41,6 @@ interface CallSchedule {
 type CallStatus = 'idle' | 'analyzing' | 'generating_voice' | 'calling' | 'playing' | 'completed' | 'error';
 
 export default function VoiceAgentPage() {
-  // ─── State ──────────────────────────────────────────────────
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig | null>(null);
   const [schedules, setSchedules] = useState<CallSchedule[]>([]);
   const [callLogs, setCallLogs] = useState<any[]>([]);
@@ -49,7 +48,6 @@ export default function VoiceAgentPage() {
   const [loading, setLoading] = useState(true);
   const [userId] = useState('dashboard_user');
 
-  // Live call state
   const [phoneNumber, setPhoneNumber] = useState('');
   const [asset, setAsset] = useState('AAPL');
   const [callStatus, setCallStatus] = useState<CallStatus>('idle');
@@ -60,7 +58,6 @@ export default function VoiceAgentPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // ─── Load config + data ─────────────────────────────────────
   useEffect(() => {
     loadAll();
   }, []);
@@ -95,7 +92,6 @@ export default function VoiceAgentPage() {
     }
   };
 
-  // ─── Live Call Handler ──────────────────────────────────────
   const handleLiveCall = async () => {
     if (!asset.trim()) {
       setCallMessage('Please enter a stock symbol');
@@ -107,10 +103,7 @@ export default function VoiceAgentPage() {
     setScript('');
 
     try {
-      // If phone number provided and Twilio configured → real phone call
-      // Otherwise → browser audio playback
       if (phoneNumber.trim() && voiceConfig?.twilio.configured) {
-        // Real phone call via Twilio
         setCallStatus('calling');
         setCallMessage(`Calling ${phoneNumber}...`);
 
@@ -125,10 +118,9 @@ export default function VoiceAgentPage() {
 
         if (result.mode === 'phone_call') {
           setCallStatus('completed');
-          setCallMessage(`📞 Calling ${phoneNumber} now! Check your phone.`);
+          setCallMessage(`Calling ${phoneNumber} now. Check your phone.`);
           setScript(result.script || '');
         } else {
-          // Fallback to browser
           setScript(result.script || '');
           if (result.audio_base64) {
             await playBase64Audio(result.audio_base64);
@@ -139,7 +131,6 @@ export default function VoiceAgentPage() {
           setCallMessage(result.message || 'Playing in browser');
         }
       } else {
-        // Browser playback mode
         setCallStatus('generating_voice');
         setCallMessage('Generating AI voice update...');
 
@@ -155,28 +146,25 @@ export default function VoiceAgentPage() {
         const contentType = response.headers.get('content-type') || '';
 
         if (contentType.includes('audio/mpeg')) {
-          // Got real ElevenLabs audio
           const audioBlob = await response.blob();
           const audioUrl = URL.createObjectURL(audioBlob);
           setScript(response.headers.get('X-Voice-Script') || '');
           setCallStatus('playing');
-          setCallMessage('🔊 Playing AI voice update...');
+          setCallMessage('Playing AI voice update...');
           await playAudioUrl(audioUrl);
           setCallStatus('completed');
-          setCallMessage('Voice update delivered!');
+          setCallMessage('Voice update delivered.');
         } else {
-          // JSON response – use browser TTS
           const data = await response.json();
           setScript(data.script || '');
           setCallStatus('playing');
-          setCallMessage('🔊 Speaking via browser...');
+          setCallMessage('Speaking via browser...');
           await playBrowserTTS(data.script);
           setCallStatus('completed');
           setCallMessage(data.message || 'Update delivered via browser voice');
         }
       }
 
-      // Refresh logs
       loadAll();
     } catch (err: any) {
       console.error('Live call failed:', err);
@@ -185,7 +173,6 @@ export default function VoiceAgentPage() {
     }
   };
 
-  // ─── Audio Playback Helpers ─────────────────────────────────
   const playAudioUrl = (url: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       if (audioRef.current) {
@@ -194,14 +181,8 @@ export default function VoiceAgentPage() {
       const audio = new Audio(url);
       audioRef.current = audio;
       setIsPlaying(true);
-      audio.onended = () => {
-        setIsPlaying(false);
-        resolve();
-      };
-      audio.onerror = () => {
-        setIsPlaying(false);
-        reject(new Error('Audio playback failed'));
-      };
+      audio.onended = () => { setIsPlaying(false); resolve(); };
+      audio.onerror = () => { setIsPlaying(false); reject(new Error('Audio playback failed')); };
       audio.play().catch(reject);
     });
   };
@@ -225,14 +206,8 @@ export default function VoiceAgentPage() {
         utterance.volume = 1.0;
         synthRef.current = utterance;
         setIsPlaying(true);
-        utterance.onend = () => {
-          setIsPlaying(false);
-          resolve();
-        };
-        utterance.onerror = () => {
-          setIsPlaying(false);
-          resolve();
-        };
+        utterance.onend = () => { setIsPlaying(false); resolve(); };
+        utterance.onerror = () => { setIsPlaying(false); resolve(); };
         window.speechSynthesis.speak(utterance);
       } else {
         resolve();
@@ -253,7 +228,6 @@ export default function VoiceAgentPage() {
     setCallMessage('');
   };
 
-  // ─── Schedule Handlers ─────────────────────────────────────
   const toggleSchedule = (id: string) => {
     setSchedules(prev => prev.map(s => (s.id === id ? { ...s, active: !s.active } : s)));
   };
@@ -269,13 +243,11 @@ export default function VoiceAgentPage() {
     }
   };
 
-  // ─── Render ────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2Icon className="animate-spin h-12 w-12 text-blue-600 mx-auto" />
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading voice agent...</p>
+          <div className="text-xl font-bold uppercase">Loading...</div>
         </div>
       </div>
     );
@@ -285,57 +257,47 @@ export default function VoiceAgentPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Voice Agent</h1>
-        <p className="mt-1 text-gray-600 dark:text-gray-400">
+        <h1 className="text-3xl font-bold uppercase">Voice Agent</h1>
+        <p className="mt-1 text-sm text-gray-600">
           Get AI-powered voice market updates — via phone call or browser audio
         </p>
       </div>
 
-      {/* ══════════ LIVE CALL PANEL ══════════ */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-3 bg-blue-600 rounded-full">
-            <PhoneCallIcon className="w-6 h-6 text-white" />
-          </div>
+      {/* Live Call Panel */}
+      <div className="border-4 border-black bg-white p-6">
+        <div className="flex items-center gap-3 mb-6 border-b-4 border-black pb-4">
+          <PhoneCallIcon className="w-6 h-6" />
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Live Market Call</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Enter a stock symbol and get a live AI voice update
-            </p>
+            <h2 className="text-xl font-bold uppercase">Live Market Call</h2>
+            <p className="text-sm text-gray-600">Enter a stock symbol and get a live AI voice update</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           {/* Asset Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Stock Symbol *
-            </label>
+            <label className="block text-xs font-bold uppercase mb-2">Stock Symbol *</label>
             <input
               type="text"
               value={asset}
               onChange={(e) => setAsset(e.target.value.toUpperCase())}
               placeholder="AAPL"
-              className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg text-lg font-bold
-                         focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                         dark:bg-gray-700 dark:text-white uppercase tracking-wider"
+              className="w-full px-4 py-3 border-4 border-black text-lg font-bold font-mono uppercase tracking-wider focus:outline-none"
             />
           </div>
 
           {/* Phone Number Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-bold uppercase mb-2">
               Phone Number{' '}
-              <span className="text-xs text-gray-500">(optional — leave empty for browser audio)</span>
+              <span className="text-gray-500 normal-case font-normal">(optional — leave empty for browser audio)</span>
             </label>
             <input
               type="tel"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="+1 555 123 4567"
-              className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-lg
-                         focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                         dark:bg-gray-700 dark:text-white"
+              className="w-full px-4 py-3 border-4 border-black focus:outline-none"
             />
           </div>
 
@@ -344,9 +306,7 @@ export default function VoiceAgentPage() {
             {callStatus === 'idle' || callStatus === 'completed' || callStatus === 'error' ? (
               <button
                 onClick={handleLiveCall}
-                className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg
-                           transition-all duration-200 flex items-center justify-center gap-2 text-lg
-                           shadow-lg hover:shadow-xl active:scale-95"
+                className="w-full px-6 py-3 bg-black text-white font-bold uppercase border-4 border-black hover:bg-white hover:text-black transition-colors flex items-center justify-center gap-2 text-lg"
               >
                 {phoneNumber.trim() ? (
                   <>
@@ -363,8 +323,7 @@ export default function VoiceAgentPage() {
             ) : isPlaying ? (
               <button
                 onClick={stopPlayback}
-                className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg
-                           flex items-center justify-center gap-2 text-lg"
+                className="w-full px-6 py-3 bg-black text-white font-bold uppercase border-4 border-black hover:bg-white hover:text-black transition-colors flex items-center justify-center gap-2 text-lg"
               >
                 <PauseIcon className="w-5 h-5" />
                 Stop
@@ -372,8 +331,7 @@ export default function VoiceAgentPage() {
             ) : (
               <button
                 disabled
-                className="w-full px-6 py-3 bg-blue-600 text-white font-bold rounded-lg
-                           flex items-center justify-center gap-2 text-lg opacity-80 cursor-wait"
+                className="w-full px-6 py-3 bg-gray-200 text-black font-bold uppercase border-4 border-black flex items-center justify-center gap-2 text-lg opacity-70 cursor-wait"
               >
                 <Loader2Icon className="w-5 h-5 animate-spin" />
                 {callStatus === 'analyzing' && 'Analyzing...'}
@@ -387,15 +345,7 @@ export default function VoiceAgentPage() {
 
         {/* Status Bar */}
         {callMessage && (
-          <div
-            className={`rounded-lg px-4 py-3 text-sm font-medium ${
-              callStatus === 'error'
-                ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                : callStatus === 'completed'
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-            }`}
-          >
+          <div className="border-2 border-black px-4 py-3 text-sm font-bold uppercase bg-gray-50">
             {callStatus !== 'idle' && callStatus !== 'completed' && callStatus !== 'error' && (
               <Loader2Icon className="w-4 h-4 inline animate-spin mr-2" />
             )}
@@ -403,29 +353,17 @@ export default function VoiceAgentPage() {
           </div>
         )}
 
-        {/* Voice Config Badges */}
-        <div className="flex gap-3 mt-4">
-          <span
-            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-              voiceConfig?.elevenlabs.configured
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-            }`}
-          >
+        {/* Voice Config Status */}
+        <div className="flex flex-wrap gap-3 mt-4">
+          <span className="inline-flex items-center gap-1 px-3 py-1 border-2 border-black text-xs font-bold uppercase">
             <MicIcon className="w-3 h-3" />
             ElevenLabs: {voiceConfig?.elevenlabs.configured ? 'Connected' : 'Not configured'}
           </span>
-          <span
-            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-              voiceConfig?.twilio.configured
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-            }`}
-          >
+          <span className="inline-flex items-center gap-1 px-3 py-1 border-2 border-black text-xs font-bold uppercase">
             <PhoneIcon className="w-3 h-3" />
             Twilio: {voiceConfig?.twilio.configured ? 'Connected' : 'Not configured'}
           </span>
-          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+          <span className="inline-flex items-center gap-1 px-3 py-1 border-2 border-black text-xs font-bold uppercase">
             <WifiIcon className="w-3 h-3" />
             Browser Audio: Always available
           </span>
@@ -434,76 +372,70 @@ export default function VoiceAgentPage() {
 
       {/* Voice Script Output */}
       {script && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">AI Voice Script</h3>
+        <div className="border-4 border-black bg-white p-6">
+          <div className="flex items-center justify-between mb-4 border-b-4 border-black pb-3">
+            <h3 className="text-lg font-bold uppercase">AI Voice Script</h3>
             <button
               onClick={() => playBrowserTTS(script)}
-              className="flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 rounded-lg hover:bg-blue-200 text-sm"
+              className="flex items-center gap-1 px-3 py-2 border-2 border-black font-bold uppercase text-sm hover:bg-black hover:text-white transition-colors"
             >
               <PlayIcon className="w-4 h-4" />
               Replay
             </button>
           </div>
-          <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 leading-relaxed max-h-64 overflow-y-auto">
+          <pre className="whitespace-pre-wrap text-sm leading-relaxed max-h-64 overflow-y-auto">
             {script}
           </pre>
         </div>
       )}
 
-      {/* ══════════ FEATURE HIGHLIGHTS ══════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      {/* Feature Highlights */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="border-4 border-black bg-white p-6">
           <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
-              <Volume2Icon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="font-bold text-gray-900 dark:text-white">ElevenLabs AI Voice</h3>
+            <Volume2Icon className="w-6 h-6" />
+            <h3 className="font-bold uppercase">ElevenLabs AI Voice</h3>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600">
             Natural-sounding voice powered by ElevenLabs. Speaks your market update like a real analyst.
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="border-4 border-black bg-white p-6">
           <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
-              <PhoneIcon className="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            <h3 className="font-bold text-gray-900 dark:text-white">Real Phone Calls</h3>
+            <PhoneIcon className="w-6 h-6" />
+            <h3 className="font-bold uppercase">Real Phone Calls</h3>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600">
             Enter your phone number and get called with your stock update. Powered by Twilio.
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="border-4 border-black bg-white p-6">
           <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
-              <CalendarIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            </div>
-            <h3 className="font-bold text-gray-900 dark:text-white">Scheduled Calls</h3>
+            <CalendarIcon className="w-6 h-6" />
+            <h3 className="font-bold uppercase">Scheduled Calls</h3>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600">
             Set up recurring daily, weekly, or custom-schedule voice briefings.
           </p>
         </div>
       </div>
 
-      {/* ══════════ SCHEDULE SECTION ══════════ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Scheduled Calls</h2>
+      {/* Schedule Section */}
+      <div className="border-4 border-black bg-white p-6">
+        <div className="flex items-center justify-between mb-6 border-b-4 border-black pb-3">
+          <h2 className="text-xl font-bold uppercase">Scheduled Calls</h2>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-2 px-4 py-2 bg-black text-white font-bold uppercase border-4 border-black hover:bg-white hover:text-black transition-colors text-sm"
           >
             <PlusIcon className="w-4 h-4" />
             Schedule Call
           </button>
         </div>
         {schedules.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+          <p className="text-gray-500 text-center py-8 font-bold uppercase text-sm">
             No scheduled calls yet. Create one to receive regular market briefings.
           </p>
         ) : (
@@ -515,22 +447,22 @@ export default function VoiceAgentPage() {
         )}
       </div>
 
-      {/* ══════════ CALL HISTORY ══════════ */}
+      {/* Call History */}
       {callLogs.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Call History</h2>
+        <div className="border-4 border-black bg-white p-6">
+          <h2 className="text-xl font-bold uppercase mb-6 border-b-4 border-black pb-3">Call History</h2>
           <div className="space-y-3">
             {callLogs.map((log: any, idx: number) => (
-              <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div key={idx} className="border-2 border-black p-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-bold text-gray-900 dark:text-white">
-                      {log.direction === 'outbound' ? '📞 Outbound' : '📲 Inbound'} — {log.call_type || 'Call'}
+                    <p className="font-bold uppercase text-sm">
+                      {log.direction === 'outbound' ? 'Outbound' : 'Inbound'} — {log.call_type || 'Call'}
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{log.phone_number}</p>
+                    <p className="text-sm text-gray-600">{log.phone_number}</p>
                     {log.message && <p className="text-sm text-gray-500 mt-1">{log.message}</p>}
                   </div>
-                  <span className="text-xs text-gray-500">{log.timestamp}</span>
+                  <span className="text-xs font-bold">{log.timestamp}</span>
                 </div>
               </div>
             ))}
@@ -580,51 +512,49 @@ function ScheduleCard({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+    <div className="border-4 border-black p-4">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <PhoneIcon className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-gray-900 dark:text-white">{schedule.phone}</h3>
+            <PhoneIcon className="w-5 h-5" />
+            <h3 className="font-bold">{schedule.phone}</h3>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{schedule.schedule}</p>
+          <p className="text-sm text-gray-600 mb-3">{schedule.schedule}</p>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Content:</span>
-              <span className="ml-2 text-gray-900 dark:text-white capitalize">{schedule.contentType.replace('_', ' ')}</span>
+              <span className="font-bold uppercase text-xs">Content:</span>
+              <span className="ml-2 capitalize">{schedule.contentType.replace('_', ' ')}</span>
             </div>
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Language:</span>
-              <span className="ml-2 text-gray-900 dark:text-white uppercase">{schedule.language}</span>
+              <span className="font-bold uppercase text-xs">Language:</span>
+              <span className="ml-2 uppercase">{schedule.language}</span>
             </div>
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Next Call:</span>
-              <span className="ml-2 text-gray-900 dark:text-white">
+              <span className="font-bold uppercase text-xs">Next Call:</span>
+              <span className="ml-2">
                 {new Date(schedule.nextCall).toLocaleString()}
               </span>
             </div>
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Total Calls:</span>
-              <span className="ml-2 text-gray-900 dark:text-white">{schedule.totalCalls}</span>
+              <span className="font-bold uppercase text-xs">Total Calls:</span>
+              <span className="ml-2">{schedule.totalCalls}</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => onToggle(schedule.id)}
-            className={`p-2 rounded-lg ${
-              schedule.active
-                ? 'bg-green-100 dark:bg-green-900 text-green-600'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600'
+            className={`px-3 py-2 border-2 border-black font-bold uppercase text-xs hover:bg-black hover:text-white transition-colors ${
+              schedule.active ? 'bg-black text-white' : 'bg-white text-black'
             }`}
           >
-            {schedule.active ? <CheckCircleIcon className="w-5 h-5" /> : <XCircleIcon className="w-5 h-5" />}
+            {schedule.active ? 'Active' : 'Paused'}
           </button>
           <button
             onClick={() => onDelete(schedule.id)}
-            className="p-2 bg-red-100 dark:bg-red-900 text-red-600 rounded-lg hover:bg-red-200 dark:hover:bg-red-800"
+            className="px-3 py-2 border-2 border-black font-bold uppercase text-xs hover:bg-black hover:text-white transition-colors"
           >
-            <XCircleIcon className="w-5 h-5" />
+            Delete
           </button>
         </div>
       </div>
@@ -654,50 +584,44 @@ function CreateScheduleModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white border-4 border-black w-full max-w-2xl">
         <div className="p-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Schedule Voice Call</h2>
+          <h2 className="text-2xl font-bold uppercase mb-6 border-b-4 border-black pb-3">Schedule Voice Call</h2>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Phone Number
-              </label>
+              <label className="block text-xs font-bold uppercase mb-2">Phone Number</label>
               <input
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-3 border-4 border-black font-bold focus:outline-none"
                 placeholder="+971501234567"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Schedule (Natural Language)
-              </label>
+              <label className="block text-xs font-bold uppercase mb-2">Schedule (Natural Language)</label>
               <input
                 type="text"
                 value={formData.schedule}
                 onChange={(e) => setFormData(prev => ({ ...prev, schedule: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-3 border-4 border-black focus:outline-none"
                 placeholder="e.g., Every Tuesday at 9 AM Dubai time"
                 required
               />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-gray-500">
                 Examples: "Daily at 8 AM", "Every Monday and Friday at 5 PM", "Weekdays at 9:30 AM"
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Content Type
-              </label>
+              <label className="block text-xs font-bold uppercase mb-2">Content Type</label>
               <select
                 value={formData.contentType}
                 onChange={(e) => setFormData(prev => ({ ...prev, contentType: e.target.value as CallSchedule['contentType'] }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-3 border-4 border-black font-bold focus:outline-none bg-white"
               >
                 <option value="market_update">Market Update</option>
                 <option value="portfolio_review">Portfolio Review</option>
@@ -706,13 +630,11 @@ function CreateScheduleModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Language
-              </label>
+              <label className="block text-xs font-bold uppercase mb-2">Language</label>
               <select
                 value={formData.language}
                 onChange={(e) => setFormData(prev => ({ ...prev, language: e.target.value as CallSchedule['language'] }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-3 border-4 border-black font-bold focus:outline-none bg-white"
               >
                 <option value="en">English</option>
                 <option value="ar">Arabic</option>
@@ -724,24 +646,22 @@ function CreateScheduleModal({
                 type="checkbox"
                 checked={formData.active}
                 onChange={(e) => setFormData(prev => ({ ...prev, active: e.target.checked }))}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                className="w-4 h-4 border-2 border-black accent-black"
               />
-              <label className="text-sm text-gray-700 dark:text-gray-300">
-                Activate schedule immediately
-              </label>
+              <label className="text-sm font-bold uppercase">Activate schedule immediately</label>
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-4 border-t-4 border-black">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="flex-1 px-4 py-3 border-4 border-black font-bold uppercase hover:bg-black hover:text-white transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="flex-1 px-4 py-3 bg-black text-white border-4 border-black font-bold uppercase hover:bg-white hover:text-black transition-colors"
               >
                 Schedule Call
               </button>
