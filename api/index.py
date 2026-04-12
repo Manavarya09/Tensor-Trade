@@ -25,9 +25,11 @@ for var in required_vars:
 
 logger.info("=" * 50)
 
-# Import FastAPI app with detailed error handling
+# Import FastAPI app — explicit assignment so Vercel's static scanner
+# finds `app` regardless of which branch executes.
 try:
-    from main import app
+    import main as _main_module
+    app = _main_module.app
     logger.info("✓ Successfully imported main app")
 except Exception as e:
     logger.error(f"✗ Failed to import main app: {e}", exc_info=True)
