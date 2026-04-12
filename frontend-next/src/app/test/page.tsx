@@ -6,10 +6,7 @@
 'use client';
 
 import React, { useState } from 'react';
-
-const API_BASE_URL = typeof window !== 'undefined' 
-    ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000')
-    : '';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function TestPage() {
     const [testResults, setTestResults] = useState<string[]>([]);
