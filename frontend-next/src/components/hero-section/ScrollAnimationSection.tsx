@@ -36,6 +36,32 @@ export default function ScrollAnimationSection() {
       }
       setImages(loadedImages);
       setIsLoaded(true);
+
+      // Draw first frame immediately
+      const canvas = canvasRef.current;
+      if (canvas && loadedImages[0]) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const img = loadedImages[0];
+          const imgRatio = img.width / img.height;
+          const canvasRatio = canvas.width / canvas.height;
+          let renderWidth, renderHeight, offsetX, offsetY;
+          if (canvasRatio > imgRatio) {
+            renderWidth = canvas.width;
+            renderHeight = canvas.width / imgRatio;
+            offsetX = 0;
+            offsetY = (canvas.height - renderHeight) / 2;
+          } else {
+            renderWidth = canvas.height * imgRatio;
+            renderHeight = canvas.height;
+            offsetX = (canvas.width - renderWidth) / 2;
+            offsetY = 0;
+          }
+          ctx.drawImage(img, offsetX, offsetY, renderWidth, renderHeight);
+        }
+      }
     };
 
     loadImages();
