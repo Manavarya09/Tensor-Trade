@@ -1,68 +1,55 @@
 """
 Vercel serverless entry point for FastAPI application.
+app must be defined at the absolute top level so Vercel's static
+scanner finds it before any try/except blocks run.
 """
 import sys
 import os
 import logging
 from pathlib import Path
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# Configure logging for Vercel
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Add parent directory to path so we can import from main
+# ── Top-level app definition (satisfies Vercel static scanner) ──
+# This fallback is replaced by the full app below if imports succeed.
+app = FastAPI(title="TensorTrade API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Attempt to load the full app ────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent.parent))
+_startup_error: str = ""
 
-# Log environment check
-logger.info("=" * 50)
-logger.info("VERCEL ENVIRONMENT CHECK")
-logger.info("=" * 50)
-
-required_vars = ["GROQ_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY"]
-for var in required_vars:
-    value = os.getenv(var)
-    logger.info(f"{var}: {'✓ SET' if value else '✗ MISSING'}")
-
-logger.info("=" * 50)
-
-# Import FastAPI app — explicit assignment so Vercel's static scanner
-# finds `app` regardless of which branch executes.
 try:
     import main as _main_module
     app = _main_module.app
-    logger.info("✓ Successfully imported main app")
-except Exception as e:
-    logger.error(f"✗ Failed to import main app: {e}", exc_info=True)
-    
-    # Create a minimal FastAPI app for error reporting
-    from fastapi import FastAPI
-    from fastapi.middleware.cors import CORSMiddleware
-    
-    app = FastAPI(title="TensorTrade - Startup Error")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-    
+    logger.info("✓ Full TensorTrade app loaded")
+except Exception as _e:
+    _startup_error = str(_e)
+    logger.error(f"✗ Failed to load main app: {_e}", exc_info=True)
+
     @app.get("/health")
-    def health_error():
+    def _health_error():
         return {
             "status": "error",
-            "error": "App failed to start",
-            "message": str(e),
+            "message": _startup_error,
             "environment": {
                 "groq_key": "✓" if os.getenv("GROQ_API_KEY") else "✗",
                 "openrouter_key": "✓" if os.getenv("OPENROUTER_API_KEY") else "✗",
                 "mistral_key": "✓" if os.getenv("MISTRAL_API_KEY") else "✗",
             },
-            "help": "Set environment variables: GROQ_API_KEY, OPENROUTER_API_KEY, MISTRAL_API_KEY"
         }
-    
+
     @app.get("/")
-    def root_error():
-        return health_error()
-    
-    logger.info("✓ Created fallback error app")
+    def _root_error():
+        return _health_error()
+
+    logger.info("✓ Fallback error app ready")
