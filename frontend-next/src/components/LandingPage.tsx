@@ -13,7 +13,7 @@ export default function LandingPage() {
   const [systemStatus, setSystemStatus] = useState('OPERATIONAL');
 
   useEffect(() => {
-    fetch('http://localhost:8000/health')
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/health`)
         .then(res => res.json())
         .then(data => {
             if (data.status === 'healthy') {

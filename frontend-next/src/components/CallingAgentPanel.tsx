@@ -7,10 +7,7 @@
 
 import React, { useState } from 'react';
 import { Phone, Calendar, Clock, MessageSquare } from 'lucide-react';
-
-const API_BASE_URL = typeof window !== 'undefined' 
-    ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000')
-    : '';
+import { API_BASE_URL } from '@/lib/api';
 
 interface CallingAgentPanelProps {
     userId: string;
