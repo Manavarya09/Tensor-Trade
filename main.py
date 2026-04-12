@@ -67,6 +67,107 @@ def set_cached_analysis(symbol: str, data: dict):
         'data': data
     }
 
+
+# ── Mock-data fallback (API key exhausted) ───────────────────
+
+MOCK_FALLBACK_NOTICE = (
+    "⚠️ Falling back to mock data — the developer's AI API key has been "
+    "exhausted. Live multi-agent analysis is unavailable. The data below "
+    "is illustrative only."
+)
+
+def _is_quota_error(exc: Exception) -> bool:
+    """Return True when the error is clearly an API-key / quota issue."""
+    msg = str(exc).lower()
+    return any(k in msg for k in [
+        "api key", "quota", "exhausted", "rate limit", "rate_limit",
+        "401", "429", "no llm api keys", "insufficient_quota",
+        "exceeded", "billing", "unauthorized",
+    ])
+
+def _build_mock_analysis(asset: str) -> dict:
+    """Rich demo analysis returned when all LLM providers are unavailable."""
+    asset = asset.upper()
+    return {
+        "asset": asset,
+        "user_id": "demo",
+        "analysis_type": "mock",
+        "mock": True,
+        "mock_notice": MOCK_FALLBACK_NOTICE,
+        "persona_selected": "Coach",
+        "market_metrics": {
+            "vix": 18.5,
+            "market_regime": "BULLISH VOLATILE",
+            "risk_index": 65,
+            "asset_volatility": 22.4,
+            "risk_level": "ELEVATED",
+            "regime_color": "#ff6600",
+        },
+        "trade_history": {
+            "total_trades": 42,
+            "total_pnl": 4587.50,
+            "win_rate": 58.5,
+            "last_trade": None,
+        },
+        "economic_calendar": {
+            "earnings": {},
+            "recent_news": [],
+            "economic_events": ["CPI YoY 2.9% vs 3.1% exp", "FOMC Meeting Minutes"],
+            "summary": "CPI data released lower than expected, fueling rate-cut bets.",
+        },
+        "behavioral_analysis": {
+            "flags": [
+                {"pattern": "FOMO", "message": "Chasing breakout candles"},
+                {"pattern": "Overtrading", "message": "15 trades in 2 hours"},
+            ],
+            "insights": ["Reduce position size during high-VIX sessions"],
+        },
+        "market_analysis": {
+            "council_opinions": [
+                f"Macro Hawk (High): Fed pivot priced in — yield curve steepening favours growth in {asset}.",
+                f"Micro Forensic (Moderate): Margins compressing but services revenue +12% YoY for {asset}.",
+                f"Flow Detective (High): Massive call gamma squeeze building at current strike levels.",
+                f"Tech Interpreter (Moderate): Bull-flag breakout on 4H chart; momentum intact.",
+                f"Skeptic (Low): Valuation stretched at 32× PE — watch for mean-reversion.",
+            ],
+            "consensus": ["Bullish short-term", "High volatility expected"],
+            "disagreements": ["Valuation concerns vs Momentum", "Fed rate-cut timing"],
+            "judge_summary": f"Council leans bullish on {asset} near-term with elevated risk. Manage size.",
+            "market_context": {
+                "price": 178.45,
+                "move_direction": "UP",
+                "change_pct": "2.3",
+                "volume": 85_000_000,
+            },
+        },
+        "narrative": {
+            "summary": f"Multi-agent analysis for {asset} — mock mode active.",
+            "styled_message": (
+                f"Listen up. The market is handing you a gift with {asset} volatility, "
+                "but don't get greedy. Technicals scream breakout, but that risk index at "
+                "65 means chop is incoming. Stick to the plan or get wrecked."
+            ),
+            "moderated_output": "",
+        },
+        "persona_post": {
+            "x": f"{asset} breaking out! Watch the key levels. #trading #stocks",
+            "linkedin": f"Market analysis for {asset} suggests strong bullish momentum with elevated short-term risk.",
+        },
+        "risk_analysis": {
+            "metrics": {"var_95": -2.1, "max_drawdown": -8.4},
+            "qualitative": {"verdict": "MANAGEABLE"},
+        },
+        "sentiment_analysis": {"overall": "BULLISH", "score": 0.62},
+        "compliance_analysis": {"compliant": True, "issues": []},
+        "shariah_compliance": {
+            "compliant": True,
+            "score": 92,
+            "reason": "Core business is Halal. Debt ratios within acceptable limits.",
+            "issues": [],
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
 # Add CORS middleware to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
@@ -1080,7 +1181,18 @@ async def analyze_asset_stream(asset: str, user_id: Optional[str] = "default_use
 
         except Exception as e:
             logger.error(f"Stream error: {e}", exc_info=True)
-            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+            if _is_quota_error(e):
+                logger.warning("API quota exhausted — streaming mock analysis")
+                yield json.dumps({
+                    "type": "status",
+                    "message": MOCK_FALLBACK_NOTICE,
+                }) + "\n"
+                await asyncio.sleep(0.3)
+                mock = _build_mock_analysis(asset)
+                mock["asset"] = asset
+                yield json.dumps({"type": "complete", "data": mock}) + "\n"
+            else:
+                yield json.dumps({"type": "error", "message": str(e)}) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
@@ -1282,24 +1394,11 @@ async def analyze_asset(asset: str, user_id: Optional[str] = "default_user"):
         logger.info(f"Analysis complete for {asset}")
         return response
         
-    except ValueError as e:
-        # Handle configuration errors (like missing API keys)
-        error_msg = str(e)
-        logger.error(f"Configuration error for {asset}: {error_msg}")
-        
-        if "API key" in error_msg or "LLM" in error_msg:
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "LLM services unavailable",
-                    "message": "The analysis system requires LLM API keys to function. Please contact the administrator.",
-                    "technical_details": error_msg
-                }
-            )
-        raise HTTPException(status_code=400, detail=error_msg)
-        
     except Exception as e:
         logger.error(f"Analysis failed for {asset}: {e}", exc_info=True)
+        if _is_quota_error(e):
+            logger.warning("API quota exhausted — returning mock analysis")
+            return _build_mock_analysis(asset)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
