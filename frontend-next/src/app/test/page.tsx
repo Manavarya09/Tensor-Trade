@@ -153,15 +153,15 @@ export default function TestPage() {
                     >
                         → Main Dashboard
                     </a>
-                    <a 
-                        href="http://localhost:8000/docs" 
+                    <a
+                        href={`${API_BASE_URL}/docs`}
                         target="_blank"
                         style={{ color: '#0f0', textDecoration: 'underline' }}
                     >
                         → Backend API Documentation
                     </a>
-                    <a 
-                        href="http://localhost:8000/health" 
+                    <a
+                        href={`${API_BASE_URL}/health`}
                         target="_blank"
                         style={{ color: '#0f0', textDecoration: 'underline' }}
                     >
