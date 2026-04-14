@@ -16,7 +16,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           {
             "bg-black text-white hover:bg-white hover:text-black": variant === "primary",
             "bg-white text-black hover:bg-black hover:text-white": variant === "secondary",
-            "bg-white text-black hover:bg-black hover:text-white": variant === "outline",
+            "bg-transparent text-black hover:bg-black hover:text-white": variant === "outline",
             "bg-transparent text-black hover:bg-black hover:text-white border-2": variant === "ghost",
           },
           {
